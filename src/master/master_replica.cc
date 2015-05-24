@@ -134,7 +134,6 @@ void MasterReplicaImpl::VoteForSelfCallback(std::string member,
                     LOG(WARNING, "VoteForSelf switch to Follower for %s", 
                             member.c_str())
                     current_term_ = resp_term;
-                    vote_for_[current_term_] = member;
                     SetRoleState(kRoleStateFollower);
                 }
             }       
@@ -230,12 +229,10 @@ void MasterReplicaImpl::AppendEntries(
     if (request_term > current_term_) {
         current_term_ = request_term; 
         SetRoleState(kRoleStateFollower);
-        vote_for_[current_term_] = request->leader_addr(); 
         response->set_term(current_term_);
-        response->set_success(false);
-        done->Run();
     }
 
+    // TODO may be replicate when role_state != Leader
     if (current_log_index_ < request->prev_log_index()) {
         response->set_success(false);
         done->Run();
