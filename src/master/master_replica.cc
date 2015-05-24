@@ -155,7 +155,7 @@ void MasterReplicaImpl::VoteForSelf() {
         return; 
     }
     // init for vote for self
-    vote_for_ = FLAGS_localhost_addr;
+    vote_for_[current_term_] = FLAGS_localhost_addr;
     vote_grant_[current_term_] = 0;
     for (int mem_ind = 0; mem_ind < members_.size(); ++mem_ind) {
         MasterReplica_Stub* member_stub = NULL; 
@@ -230,7 +230,7 @@ void MasterReplicaImpl::AppendEntries(
     if (request_term > current_term_) {
         current_term_ = request_term; 
         SetRoleState(kRoleStateFollower);
-        vote_for_ = request->leader_addr(); 
+        vote_for_[current_term_] = request->leader_addr(); 
         response->set_term(current_term_);
         response->set_success(false);
         done->Run();
@@ -295,7 +295,7 @@ void MasterReplicaImpl::RequestVote(
             MutexLock scope_lock(&lock_);
             current_term_ = voter_term; 
             SetRoleState(kRoleStateFollower);
-            vote_for_ = request->candidate_addr();
+            vote_for_[current_term_] = request->candidate_addr();
         }
         response->set_term(current_term_);
         response->set_vote_granted(true);
