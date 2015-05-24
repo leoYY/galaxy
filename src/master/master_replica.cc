@@ -302,15 +302,15 @@ void MasterReplicaImpl::RequestVote(
         done->Run();
         return;
     }
-    if (vote_for_.empty() 
-            || vote_for_ == request->candidate_addr()) {
+    if (vote_for_[current_term_].empty() 
+            || vote_for_[current_term_] == request->candidate_addr()) {
         if (IsLogEntityMoreUpToDate(request->last_log_term(), 
                     request->last_log_index())) {
             LOG(DEBUG, "voter %s can be voted", 
                     request->candidate_addr().c_str());
             {
                 MutexLock scope_lock(&lock_);
-                vote_for_ = request->candidate_addr();
+                vote_for_[current_term_] = request->candidate_addr();
             }
             response->set_vote_granted(true);
             done->Run();
