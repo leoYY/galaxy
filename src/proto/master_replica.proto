@@ -1,0 +1,56 @@
+package galaxy;
+
+// implement raft
+option cc_generic_services = true;
+
+enum RoleState {
+    kRoleStateLeader = 0;
+    kRoleStateFollower = 1;
+    kRoleStateCandidate = 2;
+    kRoleStateOffline = 3;
+};
+
+message Entry {
+    optional int64 log_index = 2;
+    optional int64 term = 3;
+    optional bytes content = 4;
+    optional int64 replica_count = 5;
+};
+
+message AppendEntriesRequest {
+    optional int64 seq_id = 1;
+    optional int64 term = 2;
+    optional string leader_addr = 3;
+    optional int64 prev_log_index = 4;
+    optional int64 prev_log_term = 5;
+
+    repeated Entry entries = 6;
+
+    optional int64 leader_commit = 7;
+};
+
+
+message AppendEntriesResponse {
+    optional int64 seq_id = 1;
+    optional int64 term = 2;
+    optional bool success = 3;
+};
+
+message RequestVoteRequest {
+    optional int64 seq_id = 1;
+    optional int64 term = 2;
+    optional string candidate_addr = 3;
+    optional int64 last_log_index = 4;
+    optional int64 last_log_term = 5;
+};
+
+message RequestVoteResponse {
+    optional int64 seq_id = 1;
+    optional int64 term = 2;
+    optional bool vote_granted = 3;
+};
+
+service MasterReplica {
+    rpc AppendEntries(AppendEntriesRequest) returns(AppendEntriesResponse);    
+    rpc RequestVote(RequestVoteRequest) returns(RequestVoteResponse);
+}
