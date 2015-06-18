@@ -39,6 +39,8 @@ public:
                          const ::galaxy::KillTaskRequest* request,
                          ::galaxy::KillTaskResponse* response,
                          ::google::protobuf::Closure* done);
+   void DumpPersistenceInfo(AgentServicePersistence* service_info);
+   void LoadPersistenceInfo(const AgentServicePersistence& service_info);
 private:
     common::ThreadPool thread_pool_;
     RpcClient* rpc_client_;
