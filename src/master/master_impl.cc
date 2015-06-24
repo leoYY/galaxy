@@ -432,7 +432,8 @@ void MasterImpl::UpdateJobsOnAgent(AgentInfo* agent,
                 }
             }
             if (instance.status() != ERROR
-               && instance.status() != COMPLETE) {
+               && instance.status() != COMPLETE
+               && instance.status() != KILLED) {
                 continue;
             }
             //ÊÍ·Å×ÊÔ´
@@ -839,21 +840,11 @@ void MasterImpl::KilledTaskCallback(
     if (failed || 
             (response->has_status()
                 && response->status() != 0)) {
-        LOG(WARNING, "kill task %ld failed status %d, rpc err_code %d",
+        LOG(WARNING, "kill task %ld on %s failed status %d, rpc err_code %d",
                 request->task_id(),
+                agent_addr.c_str(),
                 response->status(),
                 err_code);
-        MutexLock lock(&agent_lock_);
-        if (agents_.find(agent_addr) != agents_.end()) {
-            AgentInfo& agent = agents_[agent_addr];
-            thread_pool_.DelayTask(100, 
-                    boost::bind(
-                        &MasterImpl::DelayRemoveZombieTaskOnAgent, 
-                        this, &agent, request->task_id()));
-        } else {
-            LOG(WARNING, "task with id %ld no need to kill, agent info is missing", 
-                    request->task_id()); 
-        }
     } else {
         MutexLock lock(&agent_lock_);
         std::string root_path;
