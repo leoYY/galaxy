@@ -39,10 +39,8 @@ DECLARE_string(task_acct);
 DECLARE_double(cpu_num);
 DECLARE_int64(mem_gbytes);
 DECLARE_int64(mem_bytes);
-DECLARE_string(agent_restart_key);
 DECLARE_string(agent_restart_persisten_data);
 
-static const int S_PROJ = 1024;
 static volatile bool s_quit = false;
 static volatile bool s_restart = false;
 static void SignalIntHandler(int /*sig*/) {
