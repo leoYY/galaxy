@@ -147,7 +147,6 @@ public:
 protected:
 
     ProcResourceCollector* collector_;
-    // todo add resource_collector in LoadPersistenceInfo and redeloy
     long collector_id_;
     int64_t sequence_id_;
 };
