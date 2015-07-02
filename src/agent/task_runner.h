@@ -47,6 +47,10 @@ public:
    virtual void Killed() = 0;
    virtual ~TaskRunner(){}
    virtual int Clean() { return 0;}
+   virtual bool LoadPersistenceInfo(
+                const ::galaxy::TaskPersistence& info) = 0;
+   virtual bool DumpPersistenceInfo(
+                ::galaxy::TaskPersistence* info) = 0;
 };
 
 class AbstractTaskRunner:public TaskRunner{
@@ -75,12 +79,22 @@ public:
     virtual void StopPost() = 0;
     virtual void Status(TaskStatus* status) = 0;
 
-    virtual void PersistenceAble(const std::string& persistence_path) = 0;
+    void PersistenceAble(const std::string& persistence_path) {
+        persistence_path_dir_ = persistence_path; 
+    }
 
     void Killed() {
         // Mark kill 
         SetStatus(KILLED); 
     }
+
+    void SetWorkspace(DefaultWorkspace* workspace) {
+        m_workspace = workspace;
+    }
+    virtual bool LoadPersistenceInfo(
+                const ::galaxy::TaskPersistence& info);
+    virtual bool DumpPersistenceInfo(
+                ::galaxy::TaskPersistence* info);
 protected:
     void SetStatus(int status);
     void StartAfterDownload(
@@ -102,6 +116,7 @@ protected:
     int m_has_retry_times;
     int m_task_state;
     int downloader_id_;
+    std::string persistence_path_dir_;
 };
 
 class CommandTaskRunner:public AbstractTaskRunner{
@@ -112,14 +127,10 @@ public:
                       :AbstractTaskRunner(_task_info,_workspace),
                        collector_(NULL),
                        collector_id_(-1),
-                       persistence_path_dir_(),
                        sequence_id_(0) {
     }
 
     virtual ~CommandTaskRunner();
-    void PersistenceAble(const std::string& persistence_path) {
-        persistence_path_dir_ = persistence_path; 
-    }
     virtual int Prepare();
     int Start();
     int StartMonitor();
@@ -134,8 +145,8 @@ public:
 protected:
 
     ProcResourceCollector* collector_;
+    // todo add resource_collector in LoadPersistenceInfo and redeloy
     long collector_id_;
-    std::string persistence_path_dir_;
     int64_t sequence_id_;
 };
 

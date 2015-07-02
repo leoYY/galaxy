@@ -55,6 +55,7 @@ message WorkspacePersistence {
     optional string root_path = 1;
     optional string task_root_path = 2;
     optional bool has_created = 3;
+    optional TaskInfo task_info = 4;
 }
 
 message WorkspaceManagerPersistence {

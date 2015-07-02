@@ -519,6 +519,13 @@ void ContainerTaskRunner::Status(TaskStatus* status) {
         status->set_memory_usage(collector_->GetMemoryUsage());
         LOG(WARNING, "cpu usage %f memory usage %ld",
                 status->cpu_usage(), status->memory_usage());
+    } else {
+        std::string group_path = 
+            boost::lexical_cast<std::string>(
+                    m_task_info.task_id());    
+        ResourceCollectorEngine* engine =
+            GetResourceCollectorEngine();
+        collector_id_ = engine->AddCollector(collector_);
     }
     status->set_job_id(m_task_info.job_id());
     

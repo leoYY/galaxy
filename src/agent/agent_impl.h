@@ -28,6 +28,7 @@ public:
     AgentImpl();
     virtual ~AgentImpl();
 public:
+    bool InitData();
     void Report();
 
     /// Services
@@ -39,8 +40,9 @@ public:
                          const ::galaxy::KillTaskRequest* request,
                          ::galaxy::KillTaskResponse* response,
                          ::google::protobuf::Closure* done);
-   void DumpPersistenceInfo(AgentServicePersistence* service_info);
-   void LoadPersistenceInfo(const AgentServicePersistence& service_info);
+   bool DumpPersistenceInfo(AgentServicePersistence* service_info);
+   bool LoadPersistenceInfo(const AgentServicePersistence& service_info);
+   bool Stop();
 private:
     common::ThreadPool thread_pool_;
     RpcClient* rpc_client_;

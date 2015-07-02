@@ -97,14 +97,10 @@ public:
                         _cpu_acct_ctrl(NULL),
                         collector_(NULL),
                         collector_id_(-1),
-                        persistence_path_dir_(), 
                         sequence_id_(0) {}
     virtual int Prepare();
     virtual int Start();
     virtual int StartMonitor();
-    void PersistenceAble(const std::string& persistence_path) {
-        persistence_path_dir_ = persistence_path;
-    }
     virtual void StopPost();
     virtual void Status(TaskStatus* status);
     ~ContainerTaskRunner();
@@ -119,7 +115,6 @@ private:
     CpuAcctCtrl * _cpu_acct_ctrl;
     CGroupResourceCollector* collector_;
     long collector_id_;
-    std::string persistence_path_dir_;
     int64_t sequence_id_;
 };
 
