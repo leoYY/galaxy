@@ -43,6 +43,10 @@ public:
    bool DumpPersistenceInfo(AgentServicePersistence* service_info);
    bool LoadPersistenceInfo(const AgentServicePersistence& service_info);
    bool Stop();
+   virtual void SetPassword(::google::protobuf::RpcController* controller,
+                            const ::galaxy::SetPasswordRequest* request,
+                            ::galaxy::SetPasswordResponse* response,
+                            ::google::protobuf::Closure* done);
 private:
     common::ThreadPool thread_pool_;
     RpcClient* rpc_client_;

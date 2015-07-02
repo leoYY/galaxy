@@ -22,7 +22,7 @@ angular.module('galaxy.ui.ctrl').controller('TaskCtrl',function($scope,
     $scope.currentPage = 1;
 
    $scope.getTask = function(){
-      $http.get("/console/taskgroup/status?id="+service.job_id+"&master="+config.masterAddr)
+      $http.get(config.rootPrefixPath + "taskgroup/status?id="+service.job_id+"&master="+config.masterAddr)
            .success(function(data){
                if(data.status == 0 ){
                   $scope.runningNum = data.data.statics.RUNNING;
@@ -75,7 +75,7 @@ angular.module('galaxy.ui.ctrl').controller('TaskForAgentCtrl',function($scope,
                                                                 config){
    var stop = null;
    $scope.getTask = function(){
-      $http.get("/console/taskgroup/status?agent="+agent.addr+"&master="+config.masterAddr)
+      $http.get(config.rootPrefixPath + "taskgroup/status?agent="+agent.addr+"&master="+config.masterAddr)
            .success(function(data){
                if(data.status == 0 ){
                   $scope.tasklist = data.data.taskList;
@@ -98,9 +98,9 @@ angular.module('galaxy.ui.ctrl').controller('TaskForAgentCtrl',function($scope,
    
 });
 
-angular.module('galaxy.ui.ctrl').controller('TaskHistoryCtrl',function($scope,$modalInstance,$http,service,config){
+angular.module('galaxy.ui.ctrl').controller('TaskHistoryCtrl',function($scope,$modal,$modalInstance,$http,service,config){
 
-$http.get("/console/taskgroup/history?id="+service.job_id+"&master="+config.masterAddr).success(function(data){
+$http.get(config.rootPrefixPath + "taskgroup/history?id="+service.job_id+"&master="+config.masterAddr).success(function(data){
     
                 if(data.status == 0 ){
                   $scope.tasklist = data.data.taskList;
@@ -111,6 +111,22 @@ $http.get("/console/taskgroup/history?id="+service.job_id+"&master="+config.mast
     $scope.close =function(){
       $modalInstance.dismiss('cancel'); 
    }
+
+  $scope.showSetPasswordModal = function(history){
+         var modalInstace = $modal.open({
+                templateUrl:'views/setPassword.html',
+                controller:'SetPasswordModelCtrl',
+                keyboard:false,
+                backdrop:'static',
+                size:'bg',
+                resolve:{
+                agent:function(){
+                    return history.agent_addr;
+                  }
+                }
+
+        });
+    }
 
 });
 

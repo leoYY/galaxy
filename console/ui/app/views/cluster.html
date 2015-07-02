@@ -58,9 +58,11 @@
     </div>
 
 </div>
-<div class="service-list"> 
-    
-<table class="table table-striped service-table">
+<div class="service-list">
+    <div class="form-group">
+         <input ng-model="searchText" ng-change="filterMachine()" type="text" class="form-control" placeholder="搜索机器">
+     </div>
+    <table class="table table-striped service-table">
     <thead>
       <tr>
         <th>#id</th>
@@ -73,7 +75,7 @@
     <tbody>
       <tr ng-repeat="machine in machineList">
         <td>{{machine.id}}</td>
-        <td>{{machine.addr}}</td>
+        <td>{{machine.addr}} <a href="" ng-click="showSetPasswordModal(machine.addr)">设置登陆密码</a></td>
         <td><a href ng-click="listTaskByAgent(machine)">{{machine.task_num}}</a></td>
         <td>{{machine.cpu_allocated}}/{{machine.cpu_share}}</td>
         <td>{{machine.mem_allocated}}/{{machine.mem_share}}</td>
