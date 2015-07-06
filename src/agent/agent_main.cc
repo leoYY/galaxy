@@ -28,6 +28,7 @@
 #include "agent/resource_collector_engine.h"
 #include "agent/dynamic_resource_scheduler.h"
 #include "agent/utils.h"
+#include "common/util.h"
 
 DECLARE_string(agent_port);
 DECLARE_int32(agent_http_port);
@@ -40,6 +41,7 @@ DECLARE_double(cpu_num);
 DECLARE_int64(mem_gbytes);
 DECLARE_int64(mem_bytes);
 DECLARE_string(agent_restart_persisten_data);
+DECLARE_bool(agent_dynamic_scheduler_switch);
 
 static volatile bool s_quit = false;
 static volatile bool s_restart = false;
@@ -176,6 +178,21 @@ static bool DumpPersistenceInfo(galaxy::AgentImpl* agent_service) {
     return true;
 }
 
+const char* GetBuildTime() {
+#if defined(__DATE__) && defined(__TIME__)
+    const char* build_time = __DATE__" "__TIME__;
+#else
+    const char* build_time = "unkown build time";
+#endif
+    return build_time;
+}
+
+void Version() {
+    fprintf(stdout, "====================\n");    
+    fprintf(stdout, "BuildTime: %s\n", GetBuildTime());
+    fprintf(stdout, "====================\n");    
+}
+
 int main(int argc, char* argv[]) {
     // NOTE gflags parser will change argc, argv
     char* restart_argv[argc + 1];
@@ -185,11 +202,9 @@ int main(int argc, char* argv[]) {
         strncpy(restart_argv[i], argv[i], strlen(argv[i]));
         restart_argv[i][strlen(argv[i])] = '\0';
     }
-
     int ret = ::google::ParseCommandLineFlags(&argc, &argv, true);
     fprintf(stderr, "parse command line flag ret = %d\n", ret);
-   
-
+    Version();
     FLAGS_mem_bytes = FLAGS_mem_gbytes*(1024*1024*1024);
     sofa::pbrpc::RpcServerOptions options;
     sofa::pbrpc::RpcServer rpc_server(options);
@@ -245,6 +260,29 @@ int main(int argc, char* argv[]) {
             return EXIT_FAILURE;
         }
                 
+        // 防止以后升级句柄问题，重置所有句柄o_cloexec
+        //std::vector<int> fds;
+        //pid_t current_pid = getpid();
+        //common::util::GetProcessFdList(current_pid, fds);
+        //for (size_t i = 0; i < fds.size(); i++) {
+        //    if (fds[i] == STDOUT_FILENO
+        //            || fds[i] == STDERR_FILENO
+        //            || fds[i] == STDIN_FILENO) {
+        //        // 不处理标准输入输出
+        //        continue; 
+        //    } 
+        //    int flags = 0;
+        //    if ((flags = ::fcntl(fds[i], F_GETFD)) == -1) {
+        //        fprintf(stderr, "fcntl %d F_GETFD failed err[%d: %s]",
+        //                fds[i], errno, strerror(errno));
+        //        return EXIT_FAILURE;
+        //    }
+        //    if (::fcntl(fds[i], F_SETFD, FD_CLOEXEC) == -1) {
+        //        fprintf(stderr, "fcntl %d FD_CLOEXEC failed err[%d: %s]",
+        //                fds[i], errno, strerror(errno)); 
+        //        return EXIT_FAILURE;
+        //    }
+        //}   
         restart_argv[restart_argc] = NULL;
         execvp(restart_argv[0], restart_argv); 
         fprintf(stderr, "execvp failed err[%d: %s]",
