@@ -875,7 +875,7 @@ bool MasterImpl::ScheduleTask(JobInfo* job, const std::string& agent_addr) {
         task_id = next_task_id_++;
     }
 
-    if (next_stage_task_id_ - next_task_id_ < TASK_ID_SPAN) {
+    if (next_stage_task_id_ <= next_task_id_) {
         UpdateNextTaskID();
     }
 
