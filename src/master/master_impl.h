@@ -189,6 +189,7 @@ private:
             std::string agent_addr,
             const KillTaskRequest*, 
             KillTaskResponse*, bool, int);
+    void UpdateNextTaskID();
 private:
     /// Global threadpool
     common::ThreadPool thread_pool_;
@@ -213,6 +214,7 @@ private:
     leveldb::DB* persistence_handler_;
     /// master tags configuration  
     boost::unordered_map<std::string, std::set<std::string> > tags_;
+    int64_t next_stage_task_id_;
 };
 
 } // namespace galaxy
