@@ -31,7 +31,7 @@ typedef boost::multi_index::nth_index<AgentLoadIndex,1>::type cpu_left_index;
 
 const int TASK_ID_SPAN = 1000;
 const std::string TAG_KEY_PREFIX = "TAG::";
-const std::string TASK_ID_KEY = "TASK_ID";
+const std::string TASK_ID_KEY = "NEXT_TASK_ID";
 struct KillPriorityCell {
     int64_t priority;
     int64_t task_id;
