@@ -601,7 +601,7 @@ void MasterImpl::HeartBeat(::google::protobuf::RpcController* /*controller*/,
         int64_t task_id = request->task_status(i).task_id();
 
         // TODO not good enough, but it might play a role
-        if (next_task_id_ - task_id < TASK_ID_SPAN) {
+        if (next_task_id_ <= task_id) {
             next_task_id_ = task_id + TASK_ID_SPAN; 
             LOG(INFO, "next task id span to %ld", next_task_id_);
         }
