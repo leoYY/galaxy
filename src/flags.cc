@@ -22,6 +22,7 @@ DEFINE_string(agent_work_dir, "/tmp", "agent work directory");
 DEFINE_string(container, "cmd", "container type : cmd or cgroup");
 
 DEFINE_string(cgroup_root, "/cgroups", "cgroup mount point");
+DEFINE_string(cgroup_subsystem, "cpu,memory,cpuacct", "support subsystems spilit by ','");
 DEFINE_int32(agent_curl_recv_buffer_size, 1024 * 10, "agent downloader recv buffer size");
 
 DEFINE_double(cpu_num, 4, "cpu number");
