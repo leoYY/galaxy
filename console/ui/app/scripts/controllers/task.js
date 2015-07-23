@@ -20,7 +20,7 @@ angular.module('galaxy.ui.ctrl').controller('TaskCtrl',function($scope,
     $scope.pageSize = 10;
     $scope.totalItems = 0;
     $scope.currentPage = 1;
-
+    $scope.service = service;
    $scope.getTask = function(){
       $http.get(config.rootPrefixPath + "taskgroup/status?id="+service.job_id+"&master="+config.masterAddr)
            .success(function(data){
@@ -44,7 +44,8 @@ angular.module('galaxy.ui.ctrl').controller('TaskCtrl',function($scope,
            });
     }
 
-   stop = $interval($scope.getTask,1000);
+//   stop = $interval($scope.getTask,1000);
+   $scope.getTask();
    $scope.close =function(){
       if(stop != null){
           $interval.cancel(stop);
@@ -98,7 +99,7 @@ angular.module('galaxy.ui.ctrl').controller('TaskForAgentCtrl',function($scope,
    
 });
 
-angular.module('galaxy.ui.ctrl').controller('TaskHistoryCtrl',function($scope,$modalInstance,$http,service,config){
+angular.module('galaxy.ui.ctrl').controller('TaskHistoryCtrl',function($scope,$modal,$modalInstance,$http,service,config){
 
 $http.get(config.rootPrefixPath + "taskgroup/history?id="+service.job_id+"&master="+config.masterAddr).success(function(data){
     
@@ -111,6 +112,22 @@ $http.get(config.rootPrefixPath + "taskgroup/history?id="+service.job_id+"&maste
     $scope.close =function(){
       $modalInstance.dismiss('cancel'); 
    }
+
+  $scope.showSetPasswordModal = function(history){
+         var modalInstace = $modal.open({
+                templateUrl:'views/setPassword.html',
+                controller:'SetPasswordModelCtrl',
+                keyboard:false,
+                backdrop:'static',
+                size:'bg',
+                resolve:{
+                agent:function(){
+                    return history.agent_addr;
+                  }
+                }
+
+        });
+    }
 
 });
 

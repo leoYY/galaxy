@@ -24,10 +24,12 @@ DECLARE_string(guarder_persistence_file);
 
 static volatile bool s_quit = false;
 static volatile bool s_restart = false;
-static void SignalIntHandler(int sig) {
-    if (sig == SIGUSR1) {
-        s_restart = true; 
-    }
+static void SignalIntHandler(int /*sig*/) {
+    s_quit = true;
+}
+
+static void SignalIntRestartHandler(int /*sig*/) {
+    s_restart = true;
     s_quit = true;
 }
 
@@ -210,7 +212,7 @@ int main(int argc, char* argv[]) {
 
     signal(SIGINT, SignalIntHandler);
     signal(SIGTERM, SignalIntHandler);
-    signal(SIGUSR1, SignalIntHandler);
+    signal(SIGUSR1, SignalIntRestartHandler);
     while (!s_quit && !s_restart) {
         sleep(1); 
     }

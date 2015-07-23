@@ -89,6 +89,7 @@ int TaskManager::Add(const ::galaxy::TaskInfo& task_info,
         LOG(INFO,"use command task runner for task %d",task_info.task_id());
         runner = new CommandTaskRunner(my_task_info,workspace);
     }
+    // NOTE persistence path should be set before init 
     runner->PersistenceAble(persistence_path);
     if (runner->Init() != 0) {
         LOG(WARNING, "runner init failed");

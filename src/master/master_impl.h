@@ -102,6 +102,8 @@ struct JobInfo {
     bool one_task_per_host;
     //限制job在标有特定tag机器上面运行
     std::set<std::string> restrict_tags;
+    std::map<std::string, int32_t> sched_agent;
+    JobInstanceTrace trace;
 };
 
 class RpcClient;
@@ -177,7 +179,7 @@ private:
     void SaveIndex(const AgentInfo& agent);
     void RemoveIndex(int64_t agent_id);
     double CalcLoad(const AgentInfo& agent);
-    std::string AllocResource(const JobInfo& job);
+    std::string AllocResource(const JobInfo& job, ScheduleState* status);
     bool SafeModeCheck();
     bool JobTaskExistsOnAgent(const std::string& agent,
                               const JobInfo& job);

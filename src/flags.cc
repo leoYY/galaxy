@@ -56,5 +56,8 @@ DEFINE_string(guarder_persistence_file, "./dump_file", "guarder dump persistence
 DEFINE_string(agent_checkpoint_path, "./checkpoint/", "directory of agent checkpoint data");
 DEFINE_string(agent_guarder_addr, "localhost:9876", "guarder addr");
 
+DEFINE_int32(master_reschedule_error_delay_time, 5, "master for error job on the same agent reschedule delay time unit seconds");
+DEFINE_int32(agent_heartbeat_timeout, 5000, "agent heartbeat rpc timeout");
+DEFINE_int32(agent_heartbeat_interval, 5000, "agent heartbeat interval");
 
 /* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */

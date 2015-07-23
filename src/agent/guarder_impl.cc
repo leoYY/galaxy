@@ -48,6 +48,15 @@ GuarderImpl::~GuarderImpl() {
         delete background_thread_; 
         background_thread_ = NULL;
     }
+
+    std::map<std::string, ProcessStatus>::iterator it = 
+        process_status_.begin();
+    for (; it != process_status_.end(); ++it) {
+        int32_t kill_pid = it->second.gpid();
+        ::killpg(kill_pid, SIGKILL);    
+        int status = 0;
+        ::wait(&status);
+    }
 }
 
 bool GuarderImpl::Init() {
@@ -123,6 +132,25 @@ void GuarderImpl::RunProcess(
         cgroup_path = request->cgroup_path(); 
     }
     CollectFds(&fd_vector);
+
+    passwd* pw = ::getpwnam(user.c_str());
+    if (pw == NULL) {
+        LOG(WARNING, "getpwnam %s failed for process %s err[%d: %s]",
+                user.c_str(), request->process_id().c_str(), 
+                errno, strerror(errno)); 
+        response->set_status(kGuarderExecuteFailStateInternalError);
+        done->Run();
+        return;
+    }
+    uid_t userid = ::getuid();
+    if (pw->pw_uid != userid && userid == 0) {
+        if (!file::Chown(pwd, pw->pw_uid, pw->pw_gid))  {
+            LOG(WARNING, "chown %s failed", pwd.c_str()); 
+            response->set_status(kGuarderExecuteFailStateInternalError);
+            done->Run();
+            return;
+        }
+    }
 
     if (!PrepareStdFds(request->pwd(), 
                 &stdout_fd, &stderr_fd)) {
