@@ -51,4 +51,10 @@ DEFINE_string(monitor_conf_path, "", "path of monitor conf");
 DEFINE_string(pam_pwd_dir, "/tmp/", "directory that stores galaxy-ssh passwords on agent node");
 DEFINE_int32(agent_stop_timeout, 3, "agent stop user command delay timeout, unit s");
 
+DEFINE_string(guarder_port, "7869", "guarder listen port");
+DEFINE_string(guarder_persistence_file, "./dump_file", "guarder dump persistence file");
+DEFINE_string(agent_checkpoint_path, "./checkpoint/", "directory of agent checkpoint data");
+DEFINE_string(agent_guarder_addr, "localhost:9876", "guarder addr");
+
+
 /* vim: set expandtab ts=4 sw=4 sts=4 tw=100: */

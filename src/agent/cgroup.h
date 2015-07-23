@@ -15,6 +15,8 @@
 #include "proto/task.pb.h"
 #include "agent/workspace.h"
 #include "common/mutex.h"
+#include "proto/guarder.pb.h"
+#include "rpc/rpc_client.h"
 
 namespace galaxy {
 class CGroupCtrl {
@@ -76,7 +78,6 @@ public:
 
 };
 
-
 class ContainerTaskRunner:public AbstractTaskRunner{
 
 public:
@@ -88,17 +89,9 @@ public:
 
     ContainerTaskRunner(TaskInfo task_info,
                         std::string cg_root,
-                        DefaultWorkspace* workspace)
-                       :AbstractTaskRunner(task_info,workspace),
-                        _cg_root(cg_root),
-                        _cg_ctrl(NULL),
-                        _mem_ctrl(NULL),
-                        _cpu_ctrl(NULL),
-                        _cpu_acct_ctrl(NULL),
-                        collector_(NULL),
-                        collector_id_(-1),
-                        persistence_path_dir_(), 
-                        sequence_id_(0) {}
+                        DefaultWorkspace* workspace,
+                        RpcClient* rpc_client);
+    virtual int Init();
     virtual int Prepare();
     virtual int Start();
     virtual int StartMonitor();
@@ -106,11 +99,17 @@ public:
         persistence_path_dir_ = persistence_path;
     }
     virtual void StopPost();
+    virtual int Stop();
     virtual void Status(TaskStatus* status);
     ~ContainerTaskRunner();
     virtual int Clean();
+    virtual int IsRunning();
 private:
     void PutToCGroup();
+    std::string GetProcessId();
+    std::string GetMonitorProcessId();
+    int CheckProcess(const std::string& process_id);
+    void InitExecEnvs(std::vector<std::string>* envs);
 private:
     std::string _cg_root;
     CGroupCtrl* _cg_ctrl;
@@ -121,6 +120,8 @@ private:
     long collector_id_;
     std::string persistence_path_dir_;
     int64_t sequence_id_;
+    RpcClient* rpc_client_;    
+    std::vector<std::string> support_cg_;
 };
 
 }
