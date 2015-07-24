@@ -61,7 +61,7 @@ static bool LoadPersistenceInfo(galaxy::GuarderImpl* impl) {
     }
     if (read_len != sizeof(buffer_size)) {
         fprintf(stderr, "read persistence buffer "
-                "len faild need[%u] read[%d]\n",
+                "len faild need[%lu] read[%d]\n",
                 sizeof(buffer_size), read_len);
         ::close(fin);
         return false;
