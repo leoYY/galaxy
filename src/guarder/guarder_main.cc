@@ -61,7 +61,7 @@ static bool LoadPersistenceInfo(galaxy::GuarderImpl* impl) {
     }
     if (read_len != sizeof(buffer_size)) {
         fprintf(stderr, "read persistence buffer "
-                "len faild need[%d] read[%d]\n",
+                "len faild need[%u] read[%d]\n",
                 sizeof(buffer_size), read_len);
         ::close(fin);
         return false;
@@ -81,7 +81,7 @@ static bool LoadPersistenceInfo(galaxy::GuarderImpl* impl) {
 
     if (read_len != buffer_size) {
         fprintf(stderr, "read persistence buffer "
-                "failed need[%d] read[%d]\n", 
+                "failed need[%ld] read[%d]\n", 
                 buffer_size, read_len); 
         delete[] buffer;
         ::close(fin);
@@ -151,7 +151,7 @@ static bool DumpPersistenceInfo(galaxy::GuarderImpl* impl) {
     int write_len = ::write(fout, 
             &buffer_size, sizeof(buffer_size));
     if (write_len == -1) {
-        fprintf(stderr, "write persistence "
+        fprintf(stderr, "write persistence %s"
                 "len failed err[%d: %s]\n",
                 FLAGS_guarder_persistence_file.c_str(),
                 errno, strerror(errno));
