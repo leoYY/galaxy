@@ -35,9 +35,9 @@ AGENT_SRC = $(wildcard src/agent/*.cc)
 AGENT_OBJ = $(patsubst %.cc, %.o, $(AGENT_SRC))
 AGENT_HEADER = $(wildcard src/agent/*.h)
 
-GUARDER_SRC = $(wildcard src/guarder/*.cc)
+GUARDER_SRC = $(wildcard src/guarder/*.cc) src/agent/utils.cc
 GUARDER_OBJ = $(patsubst %.cc, %.o, $(GUARDER_SRC))
-GUARDER_HEADER = $(wildcard src/guarder/*.h)
+GUARDER_HEADER = $(wildcard src/guarder/*.h) src/agent/utils.h
 
 SDK_SRC = $(wildcard src/sdk/*.cc)
 SDK_OBJ = $(patsubst %.cc, %.o, $(SDK_SRC))
