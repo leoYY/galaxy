@@ -24,7 +24,7 @@ public:
     ~TaskManager(){
         std::map<int64_t,TaskRunner*>::iterator it = m_task_runner_map.begin();
         for(;it!=m_task_runner_map.end();++it){
-            it->second->Stop();
+            //it->second->Stop();
             delete it->second;
         }
         delete m_mutex;
