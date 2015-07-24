@@ -147,8 +147,8 @@ void RunProcess() {
         fprintf(stderr, "run process failed ret %d\n", ret); 
         if (response.has_status()) {
             fprintf(stderr, "run process failed by %s\n", 
-                    galaxy::GuarderExecuteFailState_Name(
-                        galaxy::GuarderExecuteFailState(response.status())).c_str()); 
+                    galaxy::GuarderExecuteState_Name(
+                        galaxy::GuarderExecuteState(response.status())).c_str()); 
         }
     } else {
         fprintf(stdout, "%s\t%d\t%d\t%d\n",

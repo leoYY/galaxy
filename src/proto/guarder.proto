@@ -2,10 +2,10 @@ package galaxy;
 
 option cc_generic_services = true;
 
-enum GuarderExecuteFailState {
-    kGuarderExecuteFailStateOK = 0;
-    kGuarderExecuteFailStateInputError = -1;
-    kGuarderExecuteFailStateInternalError = -3;
+enum GuarderExecuteState {
+    kGuarderExecuteStateOK = 0;
+    kGuarderExecuteStateInputError = -1;
+    kGuarderExecuteStateInternalError = -3;
 }
 
 message RunProcessRequest {

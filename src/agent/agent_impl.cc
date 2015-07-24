@@ -270,15 +270,7 @@ void AgentImpl::KillTask(::google::protobuf::RpcController* /*controller*/,
                          const ::galaxy::KillTaskRequest* request,
                          ::galaxy::KillTaskResponse* response,
                          ::google::protobuf::Closure* done){
-    int last_status = COMPLETE;
     std::string gc_path;
-    std::vector<TaskStatus > status_vector;
-    task_mgr_->Status(status_vector, request->task_id());
-    if (status_vector.size() != 1) {
-        LOG(WARNING, "what happend not status task id: %ld", request->task_id()); 
-    } else {
-        last_status = status_vector[0].status();    
-    }
     LOG(INFO,"kill task %d",request->task_id());
     int status = task_mgr_->Remove(request->task_id());
     LOG(INFO,"kill task %d status %d",request->task_id(),status);

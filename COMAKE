@@ -61,12 +61,12 @@ agent_sources='src/flags.cc\
                src/agent/dynamic_resource_scheduler.cc \
                src/agent/persistence_handler.cc'
 
-guarder_sources='src/agent/guarder_impl.cc \
+guarder_sources='src/guarder/guarder_impl.cc \
                 common/logging.cc common/util.cc \
                 src/proto/guarder.proto \
                 src/flags.cc \
                 src/agent/utils.cc \
-                src/agent/guarder_main.cc'
+                src/guarder/guarder_main.cc'
 
 guarder_client_sources='common/logging.cc common/util.cc \
                        src/proto/guarder.proto \

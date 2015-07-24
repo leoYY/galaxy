@@ -4,7 +4,7 @@
 //
 // Author: yuanyi03@baidu.com
 
-#include "agent/guarder_impl.h"
+#include "guarder/guarder_impl.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -107,7 +107,7 @@ void GuarderImpl::RunProcess(
             || !request->has_pwd()
             || !request->has_user()) {
         response->set_status(
-                kGuarderExecuteFailStateInputError);
+                kGuarderExecuteStateInputError);
         done->Run();
         return;
     }
@@ -138,7 +138,7 @@ void GuarderImpl::RunProcess(
         LOG(WARNING, "getpwnam %s failed for process %s err[%d: %s]",
                 user.c_str(), request->process_id().c_str(), 
                 errno, strerror(errno)); 
-        response->set_status(kGuarderExecuteFailStateInternalError);
+        response->set_status(kGuarderExecuteStateInternalError);
         done->Run();
         return;
     }
@@ -146,7 +146,7 @@ void GuarderImpl::RunProcess(
     if (pw->pw_uid != userid && userid == 0) {
         if (!file::Chown(pwd, pw->pw_uid, pw->pw_gid))  {
             LOG(WARNING, "chown %s failed", pwd.c_str()); 
-            response->set_status(kGuarderExecuteFailStateInternalError);
+            response->set_status(kGuarderExecuteStateInternalError);
             done->Run();
             return;
         }
@@ -161,7 +161,7 @@ void GuarderImpl::RunProcess(
             close(stderr_fd); 
         }
         response->set_status(
-                kGuarderExecuteFailStateInternalError);
+                kGuarderExecuteStateInternalError);
         done->Run();
         return;
     }
@@ -169,7 +169,7 @@ void GuarderImpl::RunProcess(
     pid_t child_pid = ::fork();
     if (child_pid == -1) {
         response->set_status(
-                kGuarderExecuteFailStateInternalError);         
+                kGuarderExecuteStateInternalError);         
         LOG(WARNING, "fork err for process %s err[%d: %s]",
                 request->process_id().c_str(), errno, 
                 strerror(errno));
@@ -244,7 +244,7 @@ void GuarderImpl::RunProcess(
         process_status_[status.process_id()] = status;  
     }
     response->set_process_id(status.process_id());     
-    response->set_status(kGuarderExecuteFailStateOK);
+    response->set_status(kGuarderExecuteStateOK);
     response->set_pid(child_pid);
     response->set_gpid(child_pid);
 
@@ -302,7 +302,7 @@ void GuarderImpl::KillProcess(
     if (!request->has_process_id()
             || !request->has_signal()) {
         response->set_status(
-                kGuarderExecuteFailStateInputError);
+                kGuarderExecuteStateInputError);
         done->Run();
         return;
     }
@@ -311,7 +311,7 @@ void GuarderImpl::KillProcess(
         ProcessStatus>::iterator it 
             = process_status_.find(request->process_id());
     if (it == process_status_.end()) {
-        response->set_status(kGuarderExecuteFailStateInputError);
+        response->set_status(kGuarderExecuteStateInputError);
         done->Run();
         return;
     }
@@ -338,7 +338,7 @@ void GuarderImpl::RemoveProcessState(
         ::google::protobuf::Closure* done) {
     if (!request->has_process_id()) {
         response->set_status(
-                kGuarderExecuteFailStateInputError); 
+                kGuarderExecuteStateInputError); 
         done->Run();
         return;
     }
@@ -349,7 +349,7 @@ void GuarderImpl::RemoveProcessState(
     if (it != process_status_.end()) {
         process_status_.erase(it); 
     } 
-    response->set_status(kGuarderExecuteFailStateOK);
+    response->set_status(kGuarderExecuteStateOK);
     done->Run();
     return;
 }
@@ -361,7 +361,7 @@ void GuarderImpl::CheckProcess(
         ::google::protobuf::Closure* done) { 
     if (!request->has_process_id()) {
         response->set_status(
-                kGuarderExecuteFailStateInputError); 
+                kGuarderExecuteStateInputError); 
         done->Run();
         return;
     }
@@ -374,11 +374,11 @@ void GuarderImpl::CheckProcess(
         LOG(WARNING, "process id %s not int guarder mem", 
                 request->process_id().c_str());
         response->set_status(
-                kGuarderExecuteFailStateInternalError); 
+                kGuarderExecuteStateInternalError); 
         done->Run();
         return;
     }
-    response->set_status(kGuarderExecuteFailStateOK);
+    response->set_status(kGuarderExecuteStateOK);
     ProcessStatus status = it->second;
     int ret = ::kill(status.pid(), 0);
     if (ret != 0) {
