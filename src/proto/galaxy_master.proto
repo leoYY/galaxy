@@ -1,0 +1,138 @@
+package galaxy;
+
+import "galaxy.proto";
+
+option cc_generic_services = true;
+option py_generic_services = true;
+
+
+enum MasterRpcError {
+    kMasterRpcErrorOk = 0;
+    kMasterRpcErrorInputError = 1;
+    kMasterRpcErrorInternalError = 2;
+}
+
+message RegistAgentRequest {
+    optional AgentDescription agent_desc = 1;    
+}
+
+message RegistAgentResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message FrozenAgentRequest {
+    optional string host_ip = 1;
+    optional bool frozen = 2;
+}
+
+message FrozenAgentResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message TagAgentRequest {
+    optional string host_ip = 1;
+    repeated string assign_tag = 2;
+}
+
+message TagAgentResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message NewJobRequest {
+    optional JobDescription job_desc = 1;
+}
+
+message NewJobResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message UpdateJobRequest {
+    optional JobDescription job_desc = 1;
+}
+
+message UpdateJobResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message TerminateJobRequest {
+    optional string job_id = 1;
+}
+
+message TerminateJobResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message MigrateTaskRequest {
+    optional string task_id = 1;
+}
+
+message MigrateTaskResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message RestartTaskRequest {
+    optional string task_id = 1;
+}
+
+message RestartTaskResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message RestartInstanceRequest {
+    optional string instance_id = 1;
+    optional string task_id = 2;
+}
+
+message RestartInstanceResponse {
+    optional MasterRpcError error_state = 1;
+}
+
+message ShowAgentRequest {
+    repeated string host_ip = 1;
+}
+
+message ShowAgentResponse {
+    repeated AgentStatus agent_status = 1;
+    optional MasterRpcError error_state = 2;
+}
+
+message ShowJobRequest {
+    repeated string job_ids = 1;
+}
+
+message ShowJobResponse {
+    repeated JobStatus job_status = 1;
+    optional MasterRpcError error_state = 2;
+}
+
+message ShowTaskRequest {
+    repeated string task_ids = 1;
+}
+
+message ShowTaskResponse {
+    repeated TaskStatus task_status = 1;
+    optional MasterRpcError error_state = 2;
+}
+
+service Master {
+    // agent api 
+    rpc RegistAgent(RegistAgentRequest) returns (RegistAgentResponse);
+    rpc FrozenAgent(FrozenAgentRequest) returns (FrozenAgentResponse); 
+    rpc TagAgent(TagAgentRequest) returns (TagAgentResponse);
+    // job api
+    rpc NewJob(NewJobRequest) returns (NewJobResponse);
+    rpc UpdateJob(UpdateJobRequest) returns (UpdateJobResponse);
+    rpc TerminateJob(TerminateJobRequest) returns (TerminateJobResponse);
+    // task api 
+    rpc MigrateTask(MigrateTaskRequest) returns (MigrateTaskResponse);
+    rpc RestartTask(RestartTaskRequest) returns (RestartTaskResponse);
+    // instance api 
+    rpc RestartInstance(RestartInstanceRequest) returns (RestartInstanceResponse);
+
+    rpc ShowAgent(ShowAgentRequest) returns (ShowAgentResponse);
+    rpc ShowJob(ShowJobRequest) returns (ShowJobResponse);
+    rpc ShowTask(ShowTaskRequest) returns (ShowTaskResponse);
+
+    // backup Master
+    //rpc PollMessage(PollMessageRequest) returns (PollMessageResponse);
+}

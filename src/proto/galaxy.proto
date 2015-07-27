@@ -1,0 +1,162 @@
+
+package galaxy;
+
+enum ScheduleEntityState {
+    kScheduleEntityStatePending = 0;
+    kScheduleEntityStateRunning = 1;
+    kScheduleEntityStateDead = 1;
+}
+
+enum TaskState {
+    kTaskStatePending = 0;
+    kTaskStateDeploy = 1;           
+    kTaskStateRunning = 2;          
+    kTaskStateFinish = 3;           
+    kTaskStateError = 4;
+    kTaskStateRestart = 5;
+    kTaskStateStoped = 6;
+}
+
+message ScheduleHistory {
+    optional int32 start_time = 1;
+    optional string schedule_host = 2;
+    optional string gc_path = 3;
+}
+
+message TaskStatus {
+    optional string task_id = 1;
+    optional string job_id = 2;
+    optional ScheduleEntityState schedule_entity_state = 3;
+    repeated TaskState instance_status = 5;
+    repeated ScheduleHistory schedule_histories = 6; 
+    optional int64 update_time = 7;
+
+    optional double cpu_usage = 8;
+    optional int64 memory_usage = 9;
+
+}
+
+message JobStatus {
+    optional string job_id = 1;    
+    optional ScheduleEntityState schedule_entity_state = 2;
+    optional int32 pending_count = 3;
+    optional int32 running_count = 4;
+    optional int32 error_count = 5; 
+    optional int64 update_time = 6;
+}
+
+message CpuResourceRequirement {
+    optional double cpu_share = 1;              // cgroup cpu.share
+    optional double cpu_cycle_limit = 2;        // cgroup cpu.cfs_quota_limit
+    optional int32 cpu_set_num = 3;             // cgroup cpu.cpuset
+} 
+
+message MemoryResourceRequirement {
+    optional double memory_soft_limit_in_byte = 1;
+    optional double memory_limit_in_byte = 2;
+    optional bool oom_killer_control = 3;
+}
+
+message DiskResourceRequirement {
+    optional double disk_quota_limit_in_byte = 1;
+    optional int32 sata_set_count = 2;
+    optional int32 sas_set_count = 3;
+    optional int32 ssd_set_count = 4;
+}
+
+message PortResourceRequirement {
+    repeated int32 static_port = 1;     // port1, port2, ...
+    optional string dynamic_port = 2;   // port1-port2
+}
+
+message InstanceDescription {
+    optional string instance_id = 1;
+    optional string task_id = 2;
+    optional string job_id = 3;
+
+    optional string source_package = 4;
+    optional string start_command = 5;
+    optional string stop_command = 6;
+    optional string execute_user = 7;
+    optional string health_check_command = 8;
+    optional int32 health_check_timeout = 9;
+    optional int32 deploy_timeout = 10;
+
+    optional CpuResourceRequirement cpu_requirement = 15;
+    optional MemoryResourceRequirement memory_requirement = 16;
+    optional DiskResourceRequirement disk_requirement = 17;
+    optional PortResourceRequirement port_requirement = 18;
+    // other resource type requirement 
+
+    optional int32 instance_priority = 25;               // use for start/stop order,    
+    optional int32 fail_retry_times = 26;
+}
+
+enum InstanceMigratePolicy {
+    kInstanceMigratePolicyAnyError = 0;     // If any instances on the same Agent state is error, migrate r it  
+    kInstanceMigratePolicyAllError = 1;     // Only All Instances on the same Agent state are error, migrate it
+    kInstanceMigratePolicyMainError = 2;    // Only Main Instance Error, migrate it; Main Instance with the Max InstancePrority
+}
+
+enum TaskPriorityType {
+    kTaskPriorityTypeMonitor = 0;
+    kTaskPriorityTypeRealTime = 1;
+    kTaskPriorityTypeBatch = 2;
+    kTaskPriorityTypeBestEffort = 3;
+}
+
+message JobDescription {
+    optional string job_id = 1;    
+    optional string job_name = 2;
+    optional string user = 3;
+    repeated InstanceDescription instances = 4;
+    optional InstanceMigratePolicy migrate_policy = 5; 
+
+    optional int32 migrate_step_size = 6;
+    optional int32 replicate_num = 7;
+    optional int32 max_per_host = 8;
+    optional int64 gc_timeout = 9;
+
+    repeated string tag_permit = 11;
+    repeated string tag_avoid = 12;
+    optional TaskPriorityType priority_type = 20;
+}
+
+
+message TaskDescription {
+    optional string task_id = 1;
+    optional JobDescription job_desc = 2;
+}
+
+message CpuStatistics {
+    optional string cpu_type = 1;
+    optional int64 cpu_frequency = 2;
+    optional int32 cpu_core = 3;
+    optional bool is_ht = 4;                //hyper-thread
+    optional bool is_turbo = 5;             
+}
+
+message DiskStatistics {
+    optional string disk_name = 1;        
+    optional string mount_path = 2;
+    optional string disk_size = 3;
+}
+
+message AgentDescription {
+    optional string host_name = 1;
+    optional string ip_addr = 2;
+    optional CpuStatistics cpu_resource = 3;
+    optional int64 memory_resource = 4;
+    repeated DiskStatistics ssd_statistics = 5;
+    repeated DiskStatistics sata_statistics = 6;
+    repeated DiskStatistics sas_statistics = 7;
+}
+
+message AgentStatus {
+    optional string ip_addr = 1;
+    optional AgentDescription agent_desc = 2;    
+
+    optional double cpu_usage = 3;
+    optional int64 memory_usage = 4;
+}
+

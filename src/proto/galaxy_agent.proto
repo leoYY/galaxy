@@ -1,0 +1,21 @@
+package galaxy;
+
+import "galaxy.proto";
+
+option cc_generic_services = true;
+
+message PollMessageRequest {
+    repeated TaskDescription new_tasks = 2;
+    repeated TaskDescription update_tasks = 3;
+    repeated TaskDescription kill_tasks = 4;
+}
+
+message PollMessageResponse {
+    repeated TaskStatus task_status = 2;
+}
+
+service Agent {
+    rpc PollMessage(PollMessageRequest) returns (PollMessageResponse);
+}
+
+
