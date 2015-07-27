@@ -130,7 +130,7 @@ message TaskDescription {
     optional JobDescription job_desc = 2;
 }
 
-message CpuStatistics {
+message CpuDescription {
     optional string cpu_type = 1;
     optional int64 cpu_frequency = 2;
     optional int32 cpu_core = 3;
@@ -138,7 +138,7 @@ message CpuStatistics {
     optional bool is_turbo = 5;             
 }
 
-message DiskStatistics {
+message DiskDescription {
     optional string disk_name = 1;        
     optional string mount_path = 2;
     optional string disk_size = 3;
@@ -147,11 +147,11 @@ message DiskStatistics {
 message AgentDescription {
     optional string host_name = 1;
     optional string ip_addr = 2;
-    optional CpuStatistics cpu_resource = 3;
+    optional CpuDescription cpu_resource = 3;
     optional int64 memory_resource = 4;
-    repeated DiskStatistics ssd_statistics = 5;
-    repeated DiskStatistics sata_statistics = 6;
-    repeated DiskStatistics sas_statistics = 7;
+    repeated DiskDescription ssd_statistics = 5;
+    repeated DiskDescription sata_statistics = 6;
+    repeated DiskDescription sas_statistics = 7;
 }
 
 enum AgentState {
