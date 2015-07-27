@@ -4,7 +4,7 @@ package galaxy;
 enum ScheduleEntityState {
     kScheduleEntityStatePending = 0;
     kScheduleEntityStateRunning = 1;
-    kScheduleEntityStateDead = 1;
+    kScheduleEntityStateDead = 2;
 }
 
 enum TaskState {
@@ -65,8 +65,9 @@ message DiskResourceRequirement {
 }
 
 message PortResourceRequirement {
-    repeated int32 static_port = 1;     // port1, port2, ...
-    optional string dynamic_port = 2;   // port1-port2
+    repeated string port_var = 1;
+    repeated string export_port_var = 2;
+    optional bool export_naming = 3;
 }
 
 message InstanceDescription {
@@ -90,6 +91,7 @@ message InstanceDescription {
 
     optional int32 instance_priority = 25;               // use for start/stop order,    
     optional int32 fail_retry_times = 26;
+    optional string export_naming = 27;                  
 }
 
 enum InstanceMigratePolicy {
@@ -152,11 +154,16 @@ message AgentDescription {
     repeated DiskStatistics sas_statistics = 7;
 }
 
+enum AgentState {
+    kAgentStateRunning = 0;
+    kAgentStateDead = 1;
+}
+
 message AgentStatus {
     optional string ip_addr = 1;
     optional AgentDescription agent_desc = 2;    
-
-    optional double cpu_usage = 3;
-    optional int64 memory_usage = 4;
+    optional AgentState agent_state = 3;
+    optional double cpu_usage = 4;
+    optional int64 memory_usage = 5;
 }
 

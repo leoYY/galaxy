@@ -12,6 +12,7 @@ message PollMessageRequest {
 
 message PollMessageResponse {
     repeated TaskStatus task_status = 2;
+    optional AgentStatus agent_status = 3;
 }
 
 service Agent {
