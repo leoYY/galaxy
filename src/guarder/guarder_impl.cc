@@ -236,6 +236,7 @@ void GuarderImpl::RunProcess(
     status.set_pid(child_pid); 
     status.set_gpid(child_pid);
     status.set_state(kProcessStateRunning);
+    status.set_ret_code(0);
     LOG(INFO, "process with key %s start pid %ld", 
             status.process_id().c_str(),
             child_pid);
@@ -289,6 +290,15 @@ void GuarderImpl::ThreadWait() {
         if (pid > 0 && WIFEXITED(status)) {
             LOG(WARNING, "process %d exits ret %d",
                     pid, WEXITSTATUS(status));         
+            std::map<std::string, ProcessStatus>::iterator it 
+                = process_status_.begin();
+            for (; it != process_status_.end(); ++it) {
+                if (it->second.pid() == pid) {
+                    it->second.set_state(kProcessStateError);
+                    it->second.set_ret_code(WEXITSTATUS(status));
+                    break;
+                } 
+            }
         }
     }
     background_thread_->DelayTask(5000, boost::bind(&GuarderImpl::ThreadWait, this));
@@ -379,7 +389,13 @@ void GuarderImpl::CheckProcess(
         return;
     }
     response->set_status(kGuarderExecuteStateOK);
-    ProcessStatus status = it->second;
+    ProcessStatus& status = it->second;
+    if (status.state() != kProcessStateRunning) {
+        response->set_process_state(status.state());     
+        response->set_process_exit_code(status.ret_code());
+        done->Run();
+        return;
+    }
     int ret = ::kill(status.pid(), 0);
     if (ret != 0) {
         LOG(WARNING, "%s kill %d failed, err[%d: %s]",
@@ -388,6 +404,7 @@ void GuarderImpl::CheckProcess(
                 errno, strerror(errno));
         if (errno == ESRCH) {
             response->set_process_state(kProcessStateError); 
+            status.set_state(kProcessStateError);
         }
     } else {
         int status_val;
@@ -395,18 +412,22 @@ void GuarderImpl::CheckProcess(
                 &status_val, WNOHANG); 
         if (pid == 0) {
             response->set_process_state(kProcessStateRunning); 
+            status.set_state(kProcessStateRunning);
         } else if (pid == -1) {
             LOG(WARNING, "%s wait %d failed, err[%d: %s]",
                     status.process_id().c_str(),
                     status.pid(),
                     errno, strerror(errno));     
             response->set_process_state(kProcessStateError);
+            status.set_state(kProcessStateError);
         } else {
             if (WIFEXITED(status_val)) {
                 response->set_process_exit_code(
                         WEXITSTATUS(status_val));
+                status.set_ret_code(WEXITSTATUS(status_val));
             } 
             response->set_process_state(kProcessStateError);
+            status.set_state(kProcessStateError);
         }
     }
     done->Run();
