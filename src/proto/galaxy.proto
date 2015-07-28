@@ -147,11 +147,12 @@ message DiskDescription {
 message AgentDescription {
     optional string host_name = 1;
     optional string ip_addr = 2;
-    optional CpuDescription cpu_resource = 3;
-    optional int64 memory_resource = 4;
-    repeated DiskDescription ssd_statistics = 5;
-    repeated DiskDescription sata_statistics = 6;
-    repeated DiskDescription sas_statistics = 7;
+    optional int32 port = 3;
+    optional CpuDescription cpu_resource = 4;
+    optional int64 memory_resource = 5;
+    repeated DiskDescription ssd_statistics = 6;
+    repeated DiskDescription sata_statistics = 7;
+    repeated DiskDescription sas_statistics = 8;
 }
 
 enum AgentState {
