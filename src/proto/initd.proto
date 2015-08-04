@@ -61,9 +61,31 @@ message CreatePodResponse {
     optional Status status = 1;
 }
 
+message DeletePodRequest {
+    optional string podid = 1;
+}
+
+message DeletePodResponse {
+    optional Status status = 1;
+}
+
+message UpdatePodRequest {
+    optional string podid = 1;
+    optional Resource usage = 2;
+}
+
+message UpdatePodResponse {
+    optional Status status = 1;
+}
+
 service Initd {
+    // deprecated
     rpc GetProcessStatus(GetProcessStatusRequest) returns (GetProcessStatusResponse);
+    // deprecated
     rpc Execute(ExecuteRequest) returns (ExecuteResponse);
+
     rpc GetPodStatus(GetPodStatusRequest) returns (GetPodStatusResponse);
     rpc CreatePod(CreatePodRequest) returns (CreatePodResponse);
+    rpc DeletePod(DeletePodRequest) returns (DeletePodResponse);
+    rpc UpdatePod(UpdatePodRequest) returns (UpdatePodResponse);
 }
