@@ -53,7 +53,8 @@ message GetPodStatusResponse {
 }
 
 message CreatePodRequest {
-    optional PodDescriptor pod = 1;
+    optional string podid = 1;
+    optional PodDescriptor pod = 2;
 }
 
 message CreatePodResponse {
