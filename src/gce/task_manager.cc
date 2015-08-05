@@ -26,29 +26,17 @@ DECLARE_string(gce_support_subsystems);
 DECLARE_int64(gce_initd_zombie_check_interval);
 DECLARE_string(gce_work_dir);
 DECLARE_string(gce_initd_bin);
-DECLARE_int32(gce_initd_port_begin);
-DECLARE_int32(gce_initd_port_end);
 
 namespace baidu {
 namespace galaxy {
-
-static int LaunchInitd(void *) {
-
-}
 
 TaskManager::TaskManager() : 
     tasks_mutex_(),
     tasks_(),
     background_thread_(1), 
     cgroup_root_(FLAGS_gce_cgroup_root),
-    hierarchies_(),
-    initd_port_used_(), 
-    initd_port_begin_(FLAGS_gce_initd_port_begin),
-    initd_port_end_(FLAGS_gce_initd_port_end),
-    initd_next_port_(initd_port_begin_) {
+    hierarchies_() {
     // init resource collector engine
-    // TODO initd_port_end > initd_port_begin
-    initd_port_used_.resize(initd_port_end_ - initd_port_begin_);
 }
 
 TaskManager::~TaskManager() {
@@ -59,13 +47,8 @@ int TaskManager::Init() {
     return 0;
 }
 
-int TaskManager::CreatePodTasks(const std::string& podid, const PodDescriptor& pod) {
+int TaskManager::CreateTasks(const std::string& podid, const PodDescriptor& pod) {
     MutexLock scope_lock(&tasks_mutex_);
-    if (PrepareInitd(podid) != 0) {
-        LOG(WARNING, "initd prepare failed for %s",
-                podid.c_str()); 
-        return -1;
-    }
     for (int i = 0; i < pod.tasks_size(); i++) {
         const TaskDescriptor& task = pod.tasks(i);  
         TaskInfo* task_info = new TaskInfo();
@@ -99,7 +82,7 @@ int TaskManager::CreatePodTasks(const std::string& podid, const PodDescriptor& p
     return 0;
 }
 
-int TaskManager::DeletePodTasks() {
+int TaskManager::DeleteTasks() {
     MutexLock scope_lock(&tasks_mutex_);
     std::map<std::string, TaskInfo*>::iterator it = 
         tasks_.begin();
@@ -134,35 +117,216 @@ int TaskManager::DeletePodTasks() {
         it->second = NULL;
     }
     tasks_.clear();  
-    if (0 != ReapInitd(pod_id)) {
-        LOG(WARNING, "reap initd for pod %s failed",
-                pod_id.c_str());
+    return 0;
+}
+
+int TaskManager::UpdateCpuLimit(const std::string& task_id, 
+                                const uint32_t millicores) {
+    std::string cpu_hierarchy = FLAGS_gce_cgroup_root + "/cpu";
+    int32_t cpu_share = millicores * 512;
+    MutexLock scope_lock(&tasks_mutex_);
+    std::map<std::string, TaskInfo*>::iterator it = 
+        tasks_.find(task_id);    
+    if (it == tasks_.end()) {
+        return -1; 
+    }
+    TaskInfo* task_info = it->second;
+    std::string cgroup_name = task_info->task_id;
+    if (cgroups::Write(cpu_hierarchy, 
+                cgroup_name, 
+                "cpu.share", 
+                boost::lexical_cast<std::string>(cpu_share)) != 0) {
+        LOG(WARNING, "update %s cpu limit failed",
+                cgroup_name.c_str()); 
         return -1;
     }
     return 0;
 }
 
-int TaskManager::UpdateTasksCpuLimit(const uint32_t millicores) {
-    return 0;
-}
-
 void TaskManager::LoopCheckTaskStatus() {
+    // TODO
+    return;
 }
 
+int TaskManager::DeployTask(TaskInfo* task_info) {
+    if (task_info == NULL) {
+        return -1; 
+    }
+    std::string deploy_command;
+    if (task_info->desc.source_type() == kSourceTypeBinary) {
+        // TODO write binary directly
+        std::string tar_packet = task_info->task_workspace;
+        tar_packet.append("/tmp.tar.gz");
+        if (file::IsExists(tar_packet)) {
+            file::Remove(tar_packet);     
+        }
+        const int WRITE_FLAG = O_CREAT | O_WRONLY;
+        const int WRITE_MODE = S_IRUSR | S_IWUSR 
+            | S_IRGRP | S_IRWXO;
+        int fd = ::open(tar_packet.c_str(), 
+                WRITE_FLAG, WRITE_MODE);
+        if (fd == -1) {
+            LOG(WARNING, "open download "
+                    "%s file failed err[%d: %s]",
+                    tar_packet.c_str(),
+                    errno,
+                    strerror(errno));     
+            return -1;
+        }
+        std::string binary = task_info->desc.binary();
+        int write_len = ::write(fd, 
+                binary.c_str(), binary.size());
+        if (write_len == -1) {
+            LOG(WARNING, "write download "
+                    "%s file failed err[%d: %s]",
+                    tar_packet.c_str(),
+                    errno,
+                    strerror(errno)); 
+            ::close(fd);
+            return -1;
+        }
+        ::close(fd);
+        deploy_command = "tar -xzf "; 
+        deploy_command.append(tar_packet);
+    } else if (task_info->desc.source_type() 
+            == kSourceTypeFTP) {
+        // TODO add speed limit
+        deploy_command = "wget "; 
+        deploy_command.append(task_info->desc.binary());
+        deploy_command.append(" -O tmp.tar.gz && tar -xzf tmp.tar.gz");
+    }
 
-//int TaskManager::Execute(const std::string& command) {
-//    return 0;
-//}
-
-int TaskManager::DeployTask(const TaskInfo* task_info) {
+    task_info->stage = kStageDEPLOYING;
+    // send rpc to initd to execute deploy process; 
+    ExecuteRequest initd_request;      
+    ExecuteResponse initd_response;
+    initd_request.set_key(task_info->task_id);
+    initd_request.set_commands(deploy_command);
+    initd_request.set_path(task_info->task_workspace);
+    initd_request.set_cgroup_path(task_info->task_id);
+    Initd_Stub* initd;
+    if (!rpc_client_->GetStub(
+                task_info->initd_endpoint, &initd)) {
+        LOG(WARNING, "get initd stub failed for %s",
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+    bool ret = rpc_client_->SendRequest(
+                    initd, &Initd_Stub::Execute,
+                    &initd_request,
+                    &initd_response,
+                    5, 1);
+    if (ret != 0) {
+        LOG(WARNING, "deploy command "
+                "%s execute rpc failed for %s",
+                deploy_command.c_str(),
+                task_info->task_id.c_str());
+        return -1;
+    } else if (initd_response.has_status() 
+            && initd_response.status() != kOk) {
+        LOG(WARNING, "deploy command "
+                "%s execute failed %s for %s",
+                deploy_command.c_str(),
+                Status_Name(initd_response.status()).c_str(),
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+    LOG(INFO, "deploy command %s execute success for %s",
+            deploy_command.c_str(),
+            task_info->task_id.c_str());
     return 0;
 }
 
-int TaskManager::RunTask(const TaskInfo* task_info) {
+int TaskManager::RunTask(TaskInfo* task_info) {
+    if (task_info == NULL) {
+        return -1; 
+    }
+    task_info->stage = kStageRUNNING;
+
+    // send rpc to initd to execute main process
+    ExecuteRequest initd_request; 
+    ExecuteResponse initd_response;
+    initd_request.set_key(task_info->task_id);
+    initd_request.set_commands(task_info->desc.start_command());
+    initd_request.set_path(task_info->task_workspace);
+    initd_request.set_cgroup_path(task_info->task_id);
+    std::string* pod_id = initd_request.add_envs();
+    pod_id->append("POD_ID=");
+    pod_id->append(task_info->pod_id);
+    std::string* task_id = initd_request.add_envs();
+    task_id->append("TASK_ID=");
+    task_id->append(task_info->task_id);
+    Initd_Stub* initd;
+    if (!rpc_client_->GetStub(
+                task_info->initd_endpoint, &initd)) {
+        LOG(WARNING, "get initd stub failed for %s",
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+
+    bool ret = rpc_client_->SendRequest(initd,
+                                        &Initd_Stub::Execute, 
+                                        &initd_request, 
+                                        &initd_response, 5, 1);
+    if (!ret) {
+        LOG(WARNING, "start command %s rpc failed for %s",
+                task_info->desc.start_command().c_str(),
+                task_info->task_id.c_str()); 
+        return -1;
+    } else if (initd_response.has_status()
+            && initd_response.status() != kOk) {
+        LOG(WARNING, "start command %s failed %s for %s",
+                task_info->desc.start_command().c_str(),
+                Status_Name(initd_response.status()).c_str(),
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+    LOG(INFO, "start command %s execute success for %s",
+            task_info->desc.start_command().c_str(),
+            task_info->task_id.c_str());
     return 0;
 }
 
-int TaskManager::TerminateTask(const TaskInfo* task_info) {
+int TaskManager::TerminateTask(TaskInfo* task_info) {
+    if (task_info == NULL) {
+        return -1; 
+    }
+    std::string stop_command = task_info->desc.stop_command();
+    task_info->stage = kStageSTOPPING;
+    // send rpc to initd to execute stop process
+    ExecuteRequest initd_request; 
+    ExecuteResponse initd_response;
+    initd_request.set_key(task_info->task_id);
+    initd_request.set_commands(stop_command);
+    initd_request.set_path(task_info->task_workspace);
+    initd_request.set_cgroup_path(task_info->task_id);
+    Initd_Stub* initd;
+    if (!rpc_client_->GetStub(task_info->initd_endpoint, &initd)) {
+        LOG(WARNING, "get stub failed"); 
+        return -1;
+    }
+
+    bool ret = rpc_client_->SendRequest(initd,
+                                        &Initd_Stub::Execute,
+                                        &initd_request,
+                                        &initd_response,
+                                        5, 1);
+    if (!ret) {
+        LOG(WARNING, "stop command %s rpc failed for %s",
+                stop_command.c_str(),
+                task_info->task_id.c_str()); 
+        return -1;
+    } else if (initd_response.has_status()
+                && initd_response.status() != kOk) {
+        LOG(WARNING, "stop command %s failed %s for %s",
+                stop_command.c_str(),
+                Status_Name(initd_response.status()).c_str(),
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+    LOG(INFO, "stop command %s execute success for %s",
+            stop_command.c_str(),
+            task_info->task_id.c_str());
     return 0;
 }
 
@@ -203,7 +367,49 @@ int TaskManager::PrepareCgroupEnv(const TaskInfo* task) {
             return -1;
         }              
     }
-    // TODO set cgroup contro_file
+    // TODO use cpu share ?
+    std::string cpu_hierarchy = FLAGS_gce_cgroup_root + "/cpu"; 
+    std::string mem_hierarchy = FLAGS_gce_cgroup_root + "/memory";
+    // set cpu share 
+    int32_t cpu_share = 
+        task->desc.requirement().millicores() * 512;
+    if (cgroups::Write(cpu_hierarchy, 
+                cgroup_name, 
+                "cpu.share", 
+                boost::lexical_cast<std::string>(cpu_share)
+                ) != 0) {
+        LOG(WARNING, "set cpu share %d failed for %s", 
+                cpu_share,
+                cgroup_name.c_str()); 
+        return -1;
+    }
+    // set memory limit
+    int64_t memory_limit = 
+            1024L * 1024 * task->desc.requirement().memory();
+    if (cgroups::Write(mem_hierarchy, 
+                cgroup_name, 
+                "memory.limit_in_bytes", 
+                boost::lexical_cast<std::string>(memory_limit)
+                ) != 0) {
+        LOG(WARNING, "set memory limit %ld failed for %s",
+                memory_limit,
+                cgroup_name.c_str()); 
+        return -1;
+    } 
+
+    const int GROUP_KILL_MODE = 1;
+    if (file::IsExists(mem_hierarchy 
+                + "/" + cgroup_name + "/memory.kill_mode")
+            && cgroups::Write(mem_hierarchy, 
+                cgroup_name, 
+                "memory.kill_mode", 
+                boost::lexical_cast<std::string>(GROUP_KILL_MODE)
+                ) != 0) {
+        LOG(WARNING, "set memory kill mode failed for %s",
+                cgroup_name.c_str());
+        return -1;
+    }
+
     return 0;
 }
 
@@ -245,7 +451,19 @@ int TaskManager::CleanCgroupEnv(const TaskInfo* task) {
                     (*hier_it).c_str(), cgroup.c_str()); 
             continue;
         }
-        // TODO kill pids
+        std::vector<std::string> pids;
+        if (!cgroups::GetPidsFromCgroup(*hier_it, cgroup, &pids)) {
+            LOG(WARNING, "get pids from %s failed",
+                    cgroup.c_str());  
+            return -1;
+        }
+        std::vector<std::string>::iterator pid_it = pids.begin();
+        for (; pid_it != pids.end(); ++pid_it) {
+            int pid = ::atoi((*pid_it).c_str());
+            if (pid != 0) {
+                ::kill(pid, SIGKILL); 
+            }
+        }
         if (::rmdir(cgroup_dir.c_str()) != 0
                 && errno != ENOENT) {
             LOG(WARNING, "rmdir %s failed err[%d: %s]",
@@ -260,6 +478,15 @@ int TaskManager::CleanVolumeEnv(const TaskInfo* task) {
     return 0;
 }
 
+int TaskManager::CleanResourceCollector(const TaskInfo* task) {
+    return 0;
+}
+
+int TaskManager::PrepareResourceCollector(const TaskInfo* task) {
+    // TODO 
+    return 0;
+}
+
 std::string TaskManager::GenerateTaskId(const std::string& podid) {
     boost::uuids::uuid uuid = boost::uuids::random_generator()();    
     std::stringstream sm_uuid;
@@ -269,65 +496,6 @@ std::string TaskManager::GenerateTaskId(const std::string& podid) {
     str_uuid.append(sm_uuid.str());
     return str_uuid;
 }
-
-//static int STACK_SIZE = 1024 * 1024;
-//static char INITD_STACK_BUFFER[STACK_SIZE];
-//
-//int TaskManager::PrepareInitd(const std::string& pod_id) {
-//    std::string work_space = FLAGS_gce_work_dir;
-//    work_space.append("/");
-//    work_space.append(pod_id);
-//    if (!file::Mkdir(work_space)) {
-//        LOG(WARNING, "workspace %s mkdir failed for pod id %s",
-//                work_space.c_str(), pod_id.c_str());    
-//        return -1;
-//    }
-//
-//    InitdConfig* initd_config = new InitdConfig();
-//    initd_config->initd_run_path = work_space;
-//    initd_config->initd_bin_path = FLAGS_gce_initd_bin;
-//    // alloc initd port 
-//    if (!AllocInitdPort(&(initd_config->port))) {
-//        LOG(WARNING, "no enough initd port for pod id %s",
-//                pod_id.c_str()); 
-//        delete initd_config;
-//        return -1;
-//    }
-//
-//    // prepare stdout stderr fds for initd
-//    if (!process::PrepareStdFds(
-//                initd_config->initd_run_path, 
-//                &(initd_config->stdout_fd), 
-//                &(initd_config->stderr_fd))) {
-//        LOG(WARNING, "prepare initd std fds failed"); 
-//        delete initd_config;
-//        return -1;
-//    }  
-//
-//    // collect process fds 
-//    // NOTE only deal with pbrpc fds, fds created 
-//    // by agent should use CLOSE ON EXEC flag
-//    pid_t curpid = ::getpid();
-//    process::GetProcessOpenFds(curpid, &(initd_config->fds));
-//
-//// for internal centos4 not define CLONE_NEWPID
-//#ifndef CLONE_NEWPID
-//#define CLONE_NEWPID 0x20000000
-//#endif 
-//#ifndef CLONE_NEWUTS
-//#define CLONE_NEWUTS 0x04000000
-//#endif
-//    const int CLONE_FLAGS = CLONE_NEWNS | CLONE_NEWPID 
-//        | CLONE_NEWUTS;
-//    // do clone for initd in new PID namespace and other namespace
-//    int  
-//    delete initd_config;
-//    return 0;
-//}
-//
-//int TaskManager::ReapInitd(const std::string& pod_id) {
-//    return 0;
-//}
 
 } // ending namespace galaxy
 } // ending namespace baidu
