@@ -61,7 +61,9 @@ message UMountPathResponse {
 }
 
 service Initd {
+    // deprecated
     rpc GetProcessStatus(GetProcessStatusRequest) returns (GetProcessStatusResponse);
+    // deprecated
     rpc Execute(ExecuteRequest) returns (ExecuteResponse);
     rpc MountPath(MountPathRequest) returns (MountPathResponse);    
     rpc UMountPath(UMountPathRequest) returns (UMountPathResponse);
