@@ -17,6 +17,8 @@ class Thread;
 
 namespace galaxy {
 
+class TaskManager;
+
 class PodManager {
 public:
     PodManager();
@@ -60,11 +62,7 @@ private:
 private:
     Mutex infos_mutex_;
     PodInfosType pod_infos_;
-
-    // Mutex handlers_mutex_;
-    // PodHandlersType pod_handlers_;
-
-    // boost::scoped_ptr<common::Thread> monitor_thread_;
+    boost::scoped_ptr<TaskManager> task_manager_;
 };
 
 }

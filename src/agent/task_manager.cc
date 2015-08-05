@@ -9,21 +9,22 @@ TaskManager::TaskManager() {
 TaskManager::~TaskManager() {
 }
 
-int TaskManager::CreatePodTasks(const PodDesc& pod) {
+int TaskManager::CreateTasks(const std::vector<TaskDesc>& tasks) {
     return 0;
 }
 
-int TaskManager::DeletePodTasks(const std::string& podid) {
+
+int TaskManager::DeleteTasks(const std::vector<std::string>& taskid) {
     return 0;
 }
 
-int TaskManager::UpdatePodCpuLimit(const std::string& podid, 
-                                   const uint32_t millicores) {
+int TaskManager::UpdateTaskCpuLimit(const std::string& taskid, 
+                                    const uint32_t millicores) {
     return 0;
 }
 
-int TaskManager::QueryPodTasks(const std::string& podid, 
-                               std::vector<TaskInfo>* tasks) {
+int QueryTasks(const std::vector<std::string>& taskid, 
+               std::vector<TaskInfo>* tasks) {
     return 0;
 }
 

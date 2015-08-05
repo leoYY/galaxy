@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 #include <string>
+#include <boost/scoped_ptr.hpp>
 #include "mutex.h"
 #include "thread.h"
 #include "pod_info.h"

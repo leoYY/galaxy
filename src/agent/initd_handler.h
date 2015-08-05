@@ -22,18 +22,19 @@ class ExecuteResponse;
 
 class InitdHandler {
 public:
-
     InitdHandler();
 
     ~InitdHandler();
+
+    int Execute(const std::string& command);
     
-    int Create(const PodDesc& pod);
+    // int Create(const PodDesc& pod);
 
-    int Delete(const PodDesc& pod);
+    // int Delete();
 
-    int UpdateCpuLimit(const PodDesc& pod);
+    // int UpdateCpuLimit(const Resource& usage);
 
-    int Show(boost::shared_ptr<PodInfo>& info);
+    // int Show(boost::shared_ptr<PodInfo>& info);
 
 private:
     void CheckPodInfo();
@@ -59,7 +60,6 @@ private:
     PodInfo pod_info_;
 
     boost::scoped_ptr<RpcClient> rpc_client_;
-    // boost::scoped_ptr<common::Thread> monitor_thread_;
 
     // initd listen port
     int port_;
