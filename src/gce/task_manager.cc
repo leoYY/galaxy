@@ -245,11 +245,7 @@ int TaskManager::CleanCgroupEnv(const TaskInfo* task) {
                     (*hier_it).c_str(), cgroup.c_str()); 
             continue;
         }
-        if (!cgroups::ClearTasksInCgroup(*hier_it, cgroup)) {
-            LOG(WARNING, "clear %s %s tasks cgroup failed",
-                    (*hier_it).c_str(), cgroup.c_str()); 
-            return -1;
-        }
+        // TODO kill pids
         if (::rmdir(cgroup_dir.c_str()) != 0
                 && errno != ENOENT) {
             LOG(WARNING, "rmdir %s failed err[%d: %s]",
