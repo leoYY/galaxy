@@ -12,9 +12,16 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
 
+#include "logging.h"
+
 namespace baidu {
 namespace galaxy {
 namespace cgroups {
+
+bool ClearTasksInCgroup(const std::string& hierarchy,
+                        const std::string& cgroup) {
+    return false;
+}
 
 bool GetPidsFromCgroup(const std::string& hierarchy,
                        const std::string& cgroup,
@@ -57,8 +64,8 @@ int Write(const std::string& hierarchy,
         return -1;
     }
 
-    int ret = fprintf(fd, "%s", value.c_str()); 
-    fclose();
+    int ret = ::fprintf(fd, "%s", value.c_str()); 
+    ::fclose(fd);
     if (ret <= 0) {
         return -1; 
     }

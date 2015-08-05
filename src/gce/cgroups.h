@@ -16,6 +16,9 @@ bool GetPidsFromCgroup(const std::string& hierarchy,
                        const std::string& cgroup, 
                        std::vector<std::string>* pids);
 
+bool ClearTasksInCgroup(const std::string& hierarchy,
+                        const std::string& cgroup);
+
 bool AttachPid(const std::string& hierarchy,
                const std::string& cgroup,
                int pid);
