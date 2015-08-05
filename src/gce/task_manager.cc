@@ -11,27 +11,44 @@
 #include <boost/lexical_cast.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/split.hpp>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/bind.hpp>
 
 #include "gflags/gflags.h"
 #include "gce/utils.h"
 #include "logging.h"
+#include "gce/cgroups.h"
 
 DECLARE_string(gce_cgroup_root);
 DECLARE_string(gce_support_subsystems);
 DECLARE_int64(gce_initd_zombie_check_interval);
 DECLARE_string(gce_work_dir);
+DECLARE_string(gce_initd_bin);
+DECLARE_int32(gce_initd_port_begin);
+DECLARE_int32(gce_initd_port_end);
 
 namespace baidu {
 namespace galaxy {
+
+static int LaunchInitd(void *) {
+
+}
 
 TaskManager::TaskManager() : 
     tasks_mutex_(),
     tasks_(),
     background_thread_(1), 
     cgroup_root_(FLAGS_gce_cgroup_root),
-    support_subsystems_() {
+    hierarchies_(),
+    initd_port_used_(), 
+    initd_port_begin_(FLAGS_gce_initd_port_begin),
+    initd_port_end_(FLAGS_gce_initd_port_end),
+    initd_next_port_(initd_port_begin_) {
     // init resource collector engine
+    // TODO initd_port_end > initd_port_begin
+    initd_port_used_.resize(initd_port_end_ - initd_port_begin_);
 }
 
 TaskManager::~TaskManager() {
@@ -44,6 +61,11 @@ int TaskManager::Init() {
 
 int TaskManager::CreatePodTasks(const std::string& podid, const PodDescriptor& pod) {
     MutexLock scope_lock(&tasks_mutex_);
+    if (PrepareInitd(podid) != 0) {
+        LOG(WARNING, "initd prepare failed for %s",
+                podid.c_str()); 
+        return -1;
+    }
     for (int i = 0; i < pod.tasks_size(); i++) {
         const TaskDescriptor& task = pod.tasks(i);  
         TaskInfo* task_info = new TaskInfo();
@@ -81,7 +103,9 @@ int TaskManager::DeletePodTasks() {
     MutexLock scope_lock(&tasks_mutex_);
     std::map<std::string, TaskInfo*>::iterator it = 
         tasks_.begin();
+    std::string pod_id;
     for (; it != tasks_.end(); ++it) {
+        pod_id = it->second->pod_id;
         // 4. Terminate Task 
         if (TerminateTask(it->second) != 0) {
             LOG(WARNING, "terminate task %s failed", 
@@ -110,6 +134,11 @@ int TaskManager::DeletePodTasks() {
         it->second = NULL;
     }
     tasks_.clear();  
+    if (0 != ReapInitd(pod_id)) {
+        LOG(WARNING, "reap initd for pod %s failed",
+                pod_id.c_str());
+        return -1;
+    }
     return 0;
 }
 
@@ -121,7 +150,11 @@ void TaskManager::LoopCheckTaskStatus() {
 }
 
 
-int TaskManager::Execute(const std::string& command) {
+//int TaskManager::Execute(const std::string& command) {
+//    return 0;
+//}
+
+int TaskManager::DeployTask(const TaskInfo* task_info) {
     return 0;
 }
 
@@ -154,6 +187,23 @@ int TaskManager::PrepareWorkspace(TaskInfo* task) {
 }
 
 int TaskManager::PrepareCgroupEnv(const TaskInfo* task) {
+    if (task == NULL) {
+        return -1; 
+    }
+    std::vector<std::string>::iterator hier_it = 
+        hierarchies_.begin();
+    std::string cgroup_name = task->task_id;
+    for (; hier_it != hierarchies_.end(); ++ hier_it) {
+        std::string cgroup_dir = *hier_it;
+        cgroup_dir.append("/");
+        cgroup_dir.append(cgroup_name);
+        if (!file::Mkdir(cgroup_dir)) {
+            LOG(WARNING, "create dir %s failed for %s",
+                    cgroup_dir.c_str(), task->task_id.c_str()); 
+            return -1;
+        }              
+    }
+    // TODO set cgroup contro_file
     return 0;
 }
 
@@ -168,10 +218,45 @@ int TaskManager::CleanWorkspace(const TaskInfo* task) {
                 task->task_id.c_str());
         return -1;
     }
+    std::string workspace_root = FLAGS_gce_work_dir;
+    workspace_root.append("/");
+    workspace_root.append(task->pod_id);
+    if (file::IsExists(workspace_root)
+            && !file::Remove(workspace_root)) {
+        return -1;     
+    }
     return 0;
 }
 
 int TaskManager::CleanCgroupEnv(const TaskInfo* task) {
+    if (task == NULL) {
+        return -1; 
+    } 
+    // TODO do set control_file  frozen ?
+    std::vector<std::string>::iterator hier_it = 
+        hierarchies_.begin();
+    std::string cgroup = task->task_id;
+    for (; hier_it != hierarchies_.end(); ++hier_it) {
+        std::string cgroup_dir = *hier_it;
+        cgroup_dir.append("/");
+        cgroup_dir.append(cgroup);
+        if (!file::IsExists(cgroup_dir)) {
+            LOG(INFO, "%s %s not exists",
+                    (*hier_it).c_str(), cgroup.c_str()); 
+            continue;
+        }
+        if (!cgroups::ClearTasksInCgroup(*hier_it, cgroup)) {
+            LOG(WARNING, "clear %s %s tasks cgroup failed",
+                    (*hier_it).c_str(), cgroup.c_str()); 
+            return -1;
+        }
+        if (::rmdir(cgroup_dir.c_str()) != 0
+                && errno != ENOENT) {
+            LOG(WARNING, "rmdir %s failed err[%d: %s]",
+                    cgroup_dir.c_str(), errno, strerror(errno));
+            return -1;
+        }
+    }
     return 0;
 }
 
@@ -180,8 +265,73 @@ int TaskManager::CleanVolumeEnv(const TaskInfo* task) {
 }
 
 std::string TaskManager::GenerateTaskId(const std::string& podid) {
-    return "";
+    boost::uuids::uuid uuid = boost::uuids::random_generator()();    
+    std::stringstream sm_uuid;
+    sm_uuid << uuid;
+    std::string str_uuid = podid;
+    str_uuid.append("_");
+    str_uuid.append(sm_uuid.str());
+    return str_uuid;
 }
+
+//static int STACK_SIZE = 1024 * 1024;
+//static char INITD_STACK_BUFFER[STACK_SIZE];
+//
+//int TaskManager::PrepareInitd(const std::string& pod_id) {
+//    std::string work_space = FLAGS_gce_work_dir;
+//    work_space.append("/");
+//    work_space.append(pod_id);
+//    if (!file::Mkdir(work_space)) {
+//        LOG(WARNING, "workspace %s mkdir failed for pod id %s",
+//                work_space.c_str(), pod_id.c_str());    
+//        return -1;
+//    }
+//
+//    InitdConfig* initd_config = new InitdConfig();
+//    initd_config->initd_run_path = work_space;
+//    initd_config->initd_bin_path = FLAGS_gce_initd_bin;
+//    // alloc initd port 
+//    if (!AllocInitdPort(&(initd_config->port))) {
+//        LOG(WARNING, "no enough initd port for pod id %s",
+//                pod_id.c_str()); 
+//        delete initd_config;
+//        return -1;
+//    }
+//
+//    // prepare stdout stderr fds for initd
+//    if (!process::PrepareStdFds(
+//                initd_config->initd_run_path, 
+//                &(initd_config->stdout_fd), 
+//                &(initd_config->stderr_fd))) {
+//        LOG(WARNING, "prepare initd std fds failed"); 
+//        delete initd_config;
+//        return -1;
+//    }  
+//
+//    // collect process fds 
+//    // NOTE only deal with pbrpc fds, fds created 
+//    // by agent should use CLOSE ON EXEC flag
+//    pid_t curpid = ::getpid();
+//    process::GetProcessOpenFds(curpid, &(initd_config->fds));
+//
+//// for internal centos4 not define CLONE_NEWPID
+//#ifndef CLONE_NEWPID
+//#define CLONE_NEWPID 0x20000000
+//#endif 
+//#ifndef CLONE_NEWUTS
+//#define CLONE_NEWUTS 0x04000000
+//#endif
+//    const int CLONE_FLAGS = CLONE_NEWNS | CLONE_NEWPID 
+//        | CLONE_NEWUTS;
+//    // do clone for initd in new PID namespace and other namespace
+//    int  
+//    delete initd_config;
+//    return 0;
+//}
+//
+//int TaskManager::ReapInitd(const std::string& pod_id) {
+//    return 0;
+//}
 
 } // ending namespace galaxy
 } // ending namespace baidu

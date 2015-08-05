@@ -33,6 +33,7 @@ private:
         std::string pod_id;
         TaskDescriptor desc;
 
+        // check stage state use TaskStatus and stage exit_code
         // dynamic resource usage
         ProcessInfo main_process;
         ProcessInfo deploy_process;
@@ -55,10 +56,11 @@ private:
         }
     };
 
+    int DeployTask(const TaskInfo* task_info);
     int RunTask(const TaskInfo* task_info);
     int TerminateTask(const TaskInfo* task_info);
 
-    int Execute(const std::string& desc);
+    //int Execute(const std::string& desc);
 
     //int Kill(const std::string& task_id);
 
@@ -80,15 +82,44 @@ private:
     int CleanCgroupEnv(const TaskInfo* task);
     int CleanVolumeEnv(const TaskInfo* task);
 
+    //int PrepareInitd(const std::string& pod_id);
+    //int ReapInitd(const std::string& pod_id);
+    //int AllocInitdPort(int* port_num) {
+    //    return -1; 
+    //}
+
     std::string GenerateTaskId(const std::string& podid);
 private:
+    //struct InitdConfig {
+    //    int stdout_fd;
+    //    int stderr_fd;
+    //    int port;
+    //    int pid;
+    //    std::string initd_bin_path;
+    //    std::string initd_run_path;
+    //    std::vector<int> fds;
+    //    InitdConfig() : 
+    //        stdout_fd(0), 
+    //        stderr_fd(0), 
+    //        port(0),
+    //        pid(0),
+    //        initd_bin_path(),
+    //        initd_run_path(),
+    //        fds() {}
+    //};
     // key task id
     Mutex tasks_mutex_;
     std::map<std::string, TaskInfo*> tasks_;
 
     ThreadPool background_thread_;
     std::string cgroup_root_;
-    std::vector<std::string> support_subsystems_;
+    //std::vector<std::string> support_subsystems_;
+    std::vector<std::string> hierarchies_;
+    // TODO initd port only use between [initd_port_begin_, initd_port_end_)
+    std::vector<int> initd_port_used_;
+    int initd_port_begin_;
+    int initd_port_end_;
+    int initd_next_port_;
 };
 
 } // ending namespace galaxy
