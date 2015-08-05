@@ -18,11 +18,6 @@ namespace baidu {
 namespace galaxy {
 namespace cgroups {
 
-bool ClearTasksInCgroup(const std::string& hierarchy,
-                        const std::string& cgroup) {
-    return false;
-}
-
 bool GetPidsFromCgroup(const std::string& hierarchy,
                        const std::string& cgroup,
                        std::vector<std::string>* pids) {
