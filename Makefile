@@ -48,7 +48,7 @@ GCED_SRC = $(wildcard src/gce/gced*.cc) src/gce/utils.cc
 GCED_OBJ = $(patsubst %.cc, %.o, $(GCED_SRC))
 GCED_HEADER = $(wildcard src/agent/*.h) src/gce/utils.h
 
-INITD_SRC = $(wildcard src/gce/initd*.cc) src/gce/utils.cc src/flags.cc src/gce/task_manager.cc
+INITD_SRC = $(wildcard src/gce/initd*.cc) src/gce/utils.cc src/flags.cc src/gce/task_manager.cc src/gce/cgroups.cc
 INITD_OBJ = $(patsubst %.cc, %.o, $(INITD_SRC))
 INITD_HEADER = $(wildcard src/gce/*.h) src/gce/utils.h src/gce/task_manager.h
 
