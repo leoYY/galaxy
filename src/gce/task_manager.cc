@@ -487,6 +487,43 @@ int TaskManager::PrepareResourceCollector(const TaskInfo* task) {
     return 0;
 }
 
+int TaskManager::QueryProcessInfo(const std::string& key, 
+                                  const std::string& initd_endpoint, 
+                                  ProcessInfo* info) {
+    if (info == NULL) {
+        return -1; 
+    }
+
+    GetProcessStatusRequest initd_request; 
+    GetProcessStatusResponse initd_response;
+    initd_request.set_key(key);
+    Initd_Stub* initd;
+    if (!rpc_client_->GetStub(initd_endpoint, &initd)) {
+        LOG(WARNING, "get rpc stub failed"); 
+        return -1;
+    }
+
+    bool ret = rpc_client_->SendRequest(initd,
+                                        &Initd_Stub::GetProcessStatus,
+                                        &initd_request,
+                                        &initd_response,
+                                        5, 1);
+    if (!ret) {
+        LOG(WARNING, "query key %s to %s rpc failed",
+                key.c_str(), initd_endpoint.c_str()); 
+        return -1;
+    } else if (initd_response.has_status() 
+            && initd_response.status() != kOk) {
+        LOG(WARNING, "query key %s to %s failed %s",
+                key.c_str(), initd_endpoint.c_str(),
+                Status_Name(initd_response.status()).c_str()); 
+        return -1;
+    }
+
+    info->CopyFrom(initd_response.process());
+    return 0;
+}
+
 std::string TaskManager::GenerateTaskId(const std::string& podid) {
     boost::uuids::uuid uuid = boost::uuids::random_generator()();    
     std::stringstream sm_uuid;

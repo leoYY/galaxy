@@ -54,7 +54,7 @@ private:
             task_id(),
             pod_id(),
             desc(), 
-            initd_endpoint("127.0.0.1:"),
+            initd_endpoint(),
             stage(kStagePENDING),
             main_process(), 
             deploy_process(),
@@ -73,6 +73,9 @@ private:
     int Update(const std::string& task_id, 
                const uint32_t millicores);
 
+    int QueryProcessInfo(const std::string& key, 
+                         const std::string& initd_endpoint, 
+                         ProcessInfo* process_info);
     int ExecuteCommand(const std::string& command, TaskInfo* task_info);
     
 
