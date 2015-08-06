@@ -28,11 +28,12 @@ public:
     int UpdateCpuLimit(const std::string& task_id, const uint32_t millicores);
 
 private:
-    enum Stage {
+    enum TaskStage {
         kStagePENDING = 0,
         kStageDEPLOYING = 1, 
         kStageRUNNING = 2,
-        kStageSTOPPING = 3
+        kStageSTOPPING = 3,
+        kStageENDING = 4
     };
     struct TaskInfo {
         // meta infomation
@@ -40,7 +41,7 @@ private:
         std::string pod_id;
         TaskDescriptor desc;
         std::string initd_endpoint;
-        Stage stage;
+        TaskStage stage;
         // check stage state use TaskStatus and stage exit_code
         // dynamic resource usage
         ProcessInfo main_process;
@@ -66,20 +67,11 @@ private:
         }
     };
 
-    int DeployTask(TaskInfo* task_info);
-    int RunTask(TaskInfo* task_info);
-    int TerminateTask(TaskInfo* task_info);
-
     int Update(const std::string& task_id, 
                const uint32_t millicores);
 
-    int QueryProcessInfo(const std::string& key, 
-                         const std::string& initd_endpoint, 
+    int QueryProcessInfo(const std::string& initd_endpoint, 
                          ProcessInfo* process_info);
-    int ExecuteCommand(const std::string& command, TaskInfo* task_info);
-    
-
-    bool AttachCgroup(const std::string& cgroup_path, pid_t pid);
 
     void LoopCheckTaskStatus();
     
@@ -88,12 +80,21 @@ private:
     int PrepareResourceCollector(const TaskInfo* task);
     int PrepareVolumeEnv(const TaskInfo* task);
 
+    int DeployTask(TaskInfo* task_info);
+    int RunTask(TaskInfo* task_info);
+    int TerminateTask(TaskInfo* task_info);
+
     int CleanWorkspace(const TaskInfo* task);
     int CleanCgroupEnv(const TaskInfo* task);
     int CleanResourceCollector(const TaskInfo* task);
     int CleanVolumeEnv(const TaskInfo* task);
 
+    // kStagePENDING -> kStageDEPLOYING
+    // kStageDEPLOYING -> kStageRUNNING
+    void DelayCheckTaskStageChange(const std::string& key);
+
     std::string GenerateTaskId(const std::string& podid);
+
 private:
     // key task id
     Mutex tasks_mutex_;

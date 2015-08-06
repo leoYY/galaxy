@@ -33,17 +33,31 @@ namespace galaxy {
 TaskManager::TaskManager() : 
     tasks_mutex_(),
     tasks_(),
-    background_thread_(1), 
+    background_thread_(5), 
     cgroup_root_(FLAGS_gce_cgroup_root),
     hierarchies_() {
-    // init resource collector engine
 }
 
 TaskManager::~TaskManager() {
 }
 
 int TaskManager::Init() {
-    // TODO create susystem deal
+    // TODO init resource collector engine
+    std::vector<std::string> sub_systems;
+    boost::split(sub_systems,
+            FLAGS_gce_support_subsystems,
+            boost::is_any_of(","),
+            boost::token_compress_on);      
+    for (size_t i = 0; i < sub_systems.size(); i++) {
+        std::string hierarchy = 
+            FLAGS_gce_cgroup_root + "/" + sub_systems[i];         
+        if (!file::IsExists(hierarchy)) {
+            LOG(WARNING, "hierarchy %s not exists",
+                    hierarchy.c_str());
+            return -1;
+        }
+        hierarchies_.push_back(hierarchy);
+    }  
     return 0;
 }
 
@@ -78,6 +92,12 @@ int TaskManager::CreateTasks(const std::string& podid, const PodDescriptor& pod)
         }
         LOG(INFO, "prepare task %s success", 
                         task_info->task_id.c_str());
+        task_info->stage = kStagePENDING;
+        background_thread_.DelayTask(
+                500,
+                boost::bind(
+                    &TaskManager::DelayCheckTaskStageChange, 
+                    this, task_info->task_id));
     }
     return 0;
 }
@@ -116,7 +136,8 @@ int TaskManager::DeleteTasks() {
         delete it->second;
         it->second = NULL;
     }
-    tasks_.clear();  
+    // TODO
+    //tasks_.clear();  
     return 0;
 }
 
@@ -141,11 +162,6 @@ int TaskManager::UpdateCpuLimit(const std::string& task_id,
         return -1;
     }
     return 0;
-}
-
-void TaskManager::LoopCheckTaskStatus() {
-    // TODO
-    return;
 }
 
 int TaskManager::DeployTask(TaskInfo* task_info) {
@@ -197,10 +213,12 @@ int TaskManager::DeployTask(TaskInfo* task_info) {
     }
 
     task_info->stage = kStageDEPLOYING;
+    task_info->deploy_process.set_key(task_info->task_id + "_deploy");
+    task_info->status.set_state(kPodDeploy);
     // send rpc to initd to execute deploy process; 
     ExecuteRequest initd_request;      
     ExecuteResponse initd_response;
-    initd_request.set_key(task_info->task_id);
+    initd_request.set_key(task_info->deploy_process.key());
     initd_request.set_commands(deploy_command);
     initd_request.set_path(task_info->task_workspace);
     initd_request.set_cgroup_path(task_info->task_id);
@@ -242,11 +260,12 @@ int TaskManager::RunTask(TaskInfo* task_info) {
         return -1; 
     }
     task_info->stage = kStageRUNNING;
-
+    task_info->status.set_state(kPodRunning);
+    task_info->main_process.set_key(task_info->task_id + "_main");
     // send rpc to initd to execute main process
     ExecuteRequest initd_request; 
     ExecuteResponse initd_response;
-    initd_request.set_key(task_info->task_id);
+    initd_request.set_key(task_info->main_process.key());
     initd_request.set_commands(task_info->desc.start_command());
     initd_request.set_path(task_info->task_workspace);
     initd_request.set_cgroup_path(task_info->task_id);
@@ -293,10 +312,11 @@ int TaskManager::TerminateTask(TaskInfo* task_info) {
     }
     std::string stop_command = task_info->desc.stop_command();
     task_info->stage = kStageSTOPPING;
+    task_info->stop_process.set_key(task_info->task_id + "_stop");
     // send rpc to initd to execute stop process
     ExecuteRequest initd_request; 
     ExecuteResponse initd_response;
-    initd_request.set_key(task_info->task_id);
+    initd_request.set_key(task_info->stop_process.key());
     initd_request.set_commands(stop_command);
     initd_request.set_path(task_info->task_workspace);
     initd_request.set_cgroup_path(task_info->task_id);
@@ -487,16 +507,27 @@ int TaskManager::PrepareResourceCollector(const TaskInfo* task) {
     return 0;
 }
 
-int TaskManager::QueryProcessInfo(const std::string& key, 
-                                  const std::string& initd_endpoint, 
+int TaskManager::QueryTasks(std::vector<TaskStatus>* tasks) {
+    if (tasks == NULL) {
+        return -1; 
+    }
+    return 0;
+}
+
+
+
+int TaskManager::QueryProcessInfo(const std::string& initd_endpoint, 
                                   ProcessInfo* info) {
     if (info == NULL) {
         return -1; 
     }
 
+    if (!info->has_key()) {
+        return -1; 
+    }
     GetProcessStatusRequest initd_request; 
     GetProcessStatusResponse initd_response;
-    initd_request.set_key(key);
+    initd_request.set_key(info->key());
     Initd_Stub* initd;
     if (!rpc_client_->GetStub(initd_endpoint, &initd)) {
         LOG(WARNING, "get rpc stub failed"); 
@@ -510,12 +541,12 @@ int TaskManager::QueryProcessInfo(const std::string& key,
                                         5, 1);
     if (!ret) {
         LOG(WARNING, "query key %s to %s rpc failed",
-                key.c_str(), initd_endpoint.c_str()); 
+                info->key().c_str(), initd_endpoint.c_str()); 
         return -1;
     } else if (initd_response.has_status() 
             && initd_response.status() != kOk) {
         LOG(WARNING, "query key %s to %s failed %s",
-                key.c_str(), initd_endpoint.c_str(),
+                info->key().c_str(), initd_endpoint.c_str(),
                 Status_Name(initd_response.status()).c_str()); 
         return -1;
     }
@@ -532,6 +563,148 @@ std::string TaskManager::GenerateTaskId(const std::string& podid) {
     str_uuid.append("_");
     str_uuid.append(sm_uuid.str());
     return str_uuid;
+}
+
+void TaskManager::DelayCheckTaskStageChange(const std::string& key) {
+    MutexLock scope_lock(&tasks_mutex_);
+    std::map<std::string, TaskInfo*>::iterator it = 
+        tasks_.find(key);
+    // task delete by upper
+    if (it == tasks_.end()) {
+        return; 
+    }
+
+    TaskInfo* task_info = it->second;
+    // check task current stage 
+    if (task_info->stage == kStagePENDING) {
+        // default init stage is pending 
+        // should deploy first
+        if (DeployTask(task_info) != 0) {
+            LOG(WARNING, "task %s deploy failed",
+                    task_info->task_id.c_str());
+            task_info->status.set_state(kPodError); 
+            return;
+        }
+        task_info->stage = kStageDEPLOYING;
+        // add delay task to check when deploy finish
+        // TODO deploy timeout 
+        background_thread_.DelayTask(
+                500,
+                boost::bind(
+                    &TaskManager::DelayCheckTaskStageChange, 
+                    this, key));
+    } else if (task_info->stage == kStageDEPLOYING) {
+        // in deploy stage, check deploy process status, 
+        // and do Running
+        // 1. query deploy process status 
+        if (QueryProcessInfo(task_info->initd_endpoint, 
+                    &(task_info->deploy_process)) != 0) {
+            LOG(WARNING, "task %s check deploy state failed",
+                    task_info->task_id.c_str());
+            task_info->status.set_state(kPodError);
+            return;
+        }
+        // 2. check deploy process status 
+        if (task_info->deploy_process.status() 
+                                        == kProcessRunning) {
+            LOG(DEBUG, "task %s deploy process still running",
+                    task_info->task_id.c_str());
+            background_thread_.DelayTask(
+                    500, 
+                    boost::bind(
+                        &TaskManager::DelayCheckTaskStageChange,
+                        this, key));
+            return;
+        }
+
+        // 3. check deploy process exit code
+        if (task_info->deploy_process.exit_code() != 0) {
+            LOG(WARNING, "task %s deploy process failed exit code %d",
+                    task_info->task_id.c_str(), 
+                    task_info->deploy_process.exit_code());         
+            task_info->status.set_state(kPodError);
+            return;
+        }
+        //4. run task 
+        if (RunTask(task_info) != 0) {
+            LOG(WARNING, "task %s run failed",
+                    task_info->task_id.c_str()); 
+            task_info->status.set_state(kPodError);
+            return;
+        }     
+        task_info->stage = kStageRUNNING;
+        background_thread_.DelayTask(
+                    500, 
+                    boost::bind(
+                        &TaskManager::DelayCheckTaskStageChange,
+                        this, key));
+        return;
+    } else if (task_info->stage == kStageRUNNING) {
+        // check task process status
+        // 1. query main_process status
+        if (QueryProcessInfo(task_info->initd_endpoint, 
+                    &(task_info->main_process)) != 0) {
+            LOG(WARNING, "task %s check deploy state failed",
+                    task_info->task_id.c_str());
+            task_info->status.set_state(kPodError);
+            return;
+        }
+
+        // 2. check main process status
+        if (task_info->main_process.status() == kProcessRunning) {
+            LOG(DEBUG, "task %s check running",
+                    task_info->task_id.c_str());
+            background_thread_.DelayTask(
+                        500, 
+                        boost::bind(
+                            &TaskManager::DelayCheckTaskStageChange,
+                            this, key));
+            return;
+        }
+
+        // 3. check exit_code 
+        if (task_info->main_process.exit_code() != 0) {
+            LOG(WARNING, "task %s main process run failed exit code %d",
+                    task_info->task_id.c_str(),
+                    task_info->main_process.exit_code()); 
+            task_info->status.set_state(kPodError);
+        } else {
+            // NOTE ?terminate 
+            task_info->status.set_state(kPodTerminate); 
+        }
+        return;
+    } else if (task_info->stage == kStageSTOPPING) {
+        // check stop process       
+        if (QueryProcessInfo(task_info->initd_endpoint,
+                    &(task_info->stop_process)) != 0) {
+            LOG(WARNING, "task %s query stop process failed",
+                    task_info->task_id.c_str()); 
+            task_info->status.set_state(kPodError);
+            return;
+        }
+
+        // 1. check stop process status
+        if (task_info->stop_process.status() == kProcessRunning) {
+            LOG(DEBUG, "task %s stop process is still running",
+                    task_info->task_id.c_str()); 
+            background_thread_.DelayTask(
+                        500, 
+                        boost::bind(
+                            &TaskManager::DelayCheckTaskStageChange,
+                            this, key));
+            return;
+        }
+        if (task_info->stop_process.exit_code() == 0) {
+            task_info->status.set_state(kPodTerminate); 
+        } else {
+            task_info->status.set_state(kPodError); 
+        }
+
+        task_info->stage = kStageENDING;
+        LOG(INFO, "task %s stop process exit code %d",
+                task_info->task_id.c_str(),
+                task_info->stop_process.exit_code());
+    }
 }
 
 } // ending namespace galaxy

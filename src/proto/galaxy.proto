@@ -22,6 +22,7 @@ enum PodState {
     kPodRunning = 2;
     kPodTerminate = 3;
     kPodSuspend = 4;
+    kPodError = 5;
 }
 
 enum AgentState {

@@ -104,7 +104,16 @@ void InitdImpl::Execute(::google::protobuf::RpcController* controller,
         return;
     }
 
+    {
+        MutexLock scope_lock(&lock_); 
+        if (process_infos_.find(request->key()) != process_infos_.end()) {
+            response->set_status(kInputError);    
+            done->Run();
+            return;
+        }
+    }
     LOG(INFO, "run command %s at %s", request->commands().c_str(), request->path().c_str());
+
 
     // 1. collect initd fds
     std::vector<int> fd_vector;
@@ -269,20 +278,6 @@ bool InitdImpl::AttachCgroup(const std::string& cgroup_path,
         }
     }
     return true;
-}
-
-
-void InitdImpl::CreatePod(::google::protobuf::RpcController* controller,
-                      const ::baidu::galaxy::CreatePodRequest* request,
-                      ::baidu::galaxy::CreatePodResponse* response,
-                      ::google::protobuf::Closure* done) {
-}
-
-
-void InitdImpl::GetPodStatus(::google::protobuf::RpcController* controller,
-                         const ::baidu::galaxy::GetPodStatusRequest* request,
-                         ::baidu::galaxy::GetPodStatusResponse* response,
-                         ::google::protobuf::Closure* done) {
 }
 
 bool InitdImpl::LoadProcessInfoCheckPoint(const ProcessInfoCheckpoint& checkpoint) {
