@@ -4,11 +4,14 @@
 #include <map>
 #include <vector>
 #include <string>
-#include "mutex.h"
-#include "thread.h"
-#include "pod_info.h"
+#include <boost/scoped_ptr.hpp>
+#include <boost/shared_ptr.hpp>
 #include "proto/galaxy.pb.h"
 #include "proto/initd.pb.h"
+#include "mutex.h"
+#include "thread.h"
+#include "rpc/rpc_client.h"
+#include "pod_info.h"
 
 namespace baidu {
 
@@ -21,6 +24,7 @@ namespace galaxy {
 struct TaskDesc {
     TaskDescriptor task;
     int initd_port;
+    std::string root_dir;
 };
 
 struct TaskInfo {
@@ -31,6 +35,12 @@ struct TaskInfo {
     ProcessInfo process;
     TaskStatus status;
     std::string cgroup_path;
+
+    uint32_t millicores;
+
+    std::string work_dir;
+
+    std::string taskid;
 };
 
 class TaskManager {
@@ -39,9 +49,9 @@ public:
 
     ~TaskManager();
 
-    int CreateTasks(const std::vector<TaskDesc>& tasks);
+    int CreateTask(const TaskDesc& task, std::string* taskid);
 
-    int DeleteTasks(const std::vector<std::string>& taskid);
+    int DeleteTask(const std::string& taskid);
 
     int UpdateTaskCpuLimit(const std::string& taskid, 
                            const uint32_t millicores);
@@ -59,14 +69,37 @@ private:
 
     void LoopCheckTaskStatus();
 
+    std::string GenerateTaskId(const std::string& root_dir);
+
+    int PrepareWorkspace(boost::shared_ptr<TaskInfo>& task);
+
+    int PrepareCgroupEnv(const boost::shared_ptr<TaskInfo>& task);
+
+    int PrepareVolumeEnv(const boost::shared_ptr<TaskInfo>& task);
+
+    template <class Request, class Response>
+    void SendRequestToInitd(
+        void(Initd_Stub::*func)(google::protobuf::RpcController*, 
+                                const Request*, Response*, 
+                                ::google::protobuf::Closure*), 
+        const Request* request, 
+        Response* response, int port);
+
+    template <class Request, class Response>
+    void InitdCallback(const Request* request, 
+                       Response* response, 
+                       bool failed, int error);
 private:
 
-    Mutex task_mutex_;
+    Mutex tasks_mutex_;
 
+    typedef std::map<std::string, boost::shared_ptr<TaskInfo> > TasksType;
     // key taskid 
-    std::map<std::string, TaskInfo * > tasks_;
+    TasksType tasks_;
     // Thread  
     boost::scoped_ptr<common::Thread> monitor_thread_;
+
+    boost::scoped_ptr<RpcClient> rpc_client_;
 };
 
 }

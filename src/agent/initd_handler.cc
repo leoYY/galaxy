@@ -17,13 +17,6 @@ namespace baidu {
 namespace galaxy {
 
 InitdHandler::InitdHandler() {
-    // pod_info_.reset(new PodInfo());
-    // pod_info_->desc = desc;
-
-    // monitor_thread_.reset(new common::Thread());
-    // monitor_thread_->Start(boost::bind(&InitdHandler::LoopCheckPodInfo, 
-    //                                   this));
-
    // TODO mvoe to pod manager
    port_ = RandRange(5000, 7999);
    rpc_client_.reset(new RpcClient());
@@ -33,23 +26,25 @@ InitdHandler::~InitdHandler() {
 
 }
 
-int InitdHandler::Create(const PodDesc& pod) {
-    
+int InitdHandler::Create(const std::string& podid, 
+                         const std::string& work_dir) {
     // current dirertor as work_dir
-    const static std::string current_dir("./");
-    std::string work_dir(current_dir + pod.id);
+    // const static std::string current_dir("./");
+    // std::string work_dir(current_dir + podid);
 
-    // create work dir
-    int ret = file::Mkdir(work_dir.c_str());
-    if (ret == EEXIST) {
-        LOG(WARNING, "work dir already exist[%s]", work_dir.c_str());
-        return 0;
-    } 
+    // // create work dir
+    // int ret = file::Mkdir(work_dir.c_str());
+    // if (ret == EEXIST) {
+    //     LOG(WARNING, "work dir already exist[%s]", work_dir.c_str());
+    //     return 0;
+    // }
 
-    {
-    MutexLock lock(&info_mutex_);
-    pod_info_.desc = pod;
-    }
+    // {
+    // MutexLock lock(&info_mutex_);
+    // pod_info_.desc = pod;
+    // }
+
+    // podid_ = pod.id;
 
     // initd startup command
     std::stringstream command;
@@ -61,9 +56,10 @@ int InitdHandler::Create(const PodDesc& pod) {
     int stdout_fd = 0;
     int stderr_fd = 0;
     std::vector<int> fd_vector;
+    process::GetProcessOpenFds(::getpid(), &fd_vector);
     // TODO
     // agent current director
-    if (!process::PrepareStdFds(current_dir.c_str(), 
+    if (!process::PrepareStdFds(work_dir.c_str(), 
                                 &stdout_fd, &stderr_fd)) {
         if (stdout_fd != -1) {
             ::close(stdout_fd); 
@@ -79,7 +75,7 @@ int InitdHandler::Create(const PodDesc& pod) {
     pid_t child_pid = ::fork();
     if (child_pid == -1) {
         LOG(WARNING, "fork %s failed err[%d: %s]",
-            pod.id.c_str(), errno, strerror(errno)); 
+            podid.c_str(), errno, strerror(errno)); 
         return -1;
     } else if (child_pid == 0) {
         // setpgid  & chdir
@@ -107,43 +103,60 @@ int InitdHandler::Create(const PodDesc& pod) {
     //////////////////// end to create initd process
 
     // send execute request
-    CreatePodRequest* request = new CreatePodRequest();
-    CreatePodResponse* response = new CreatePodResponse();
-    request->mutable_pod()->CopyFrom(pod.desc);
+    // CreatePodRequest* request = new CreatePodRequest();
+    // CreatePodResponse* response = new CreatePodResponse();
+    // request->set_podid(pod.id);
+    // request->mutable_pod()->CopyFrom(pod.desc);
+    // SendRequestToInitd(&Initd_Stub::CreatePod, request, response);
 
-    SendRequestToInitd(&Initd_Stub::CreatePod, request, response);
-
-    LOG(INFO, "create initd work_dir[%s]", work_dir.c_str());
+    LOG(INFO, "create initd work_dir[%s], initd listen port[%d], podid[%s]",
+        work_dir.c_str(), port_, podid.c_str());
     return 0;
 }
 
-int InitdHandler::Delete(const PodDesc& pod) {
-    return 0;
-}
+// int InitdHandler::Delete() {
+//     DeletePodRequest* request = new DeletePodRequest();
+//     DeletePodResponse* response = new DeletePodResponse();
+//     request->set_podid(podid_);
+//     SendRequestToInitd(&Initd_Stub::DeletePod, request, response);
+//     LOG(INFO, "delete pod[%s]", podid_.c_str());
+//     return 0;
+// }
 
-int InitdHandler::UpdateCpuLimit(const PodDesc& pod) {
-    return 0;
-}
+// int InitdHandler::UpdateCpuLimit(const Resource& usage) {
+//     UpdatePodRequest* request = new UpdatePodRequest();
+//     UpdatePodResponse* response = new UpdatePodResponse();
+//     request->set_podid(podid_);
+//     request->mutable_usage()->CopyFrom(usage);
+// 
+//     SendRequestToInitd(&Initd_Stub::UpdatePod, request, response);
+//     LOG(INFO, "update pod[%s] cpu to [%d], memory to [%d]", 
+//         podid_.c_str(), usage.millicores(), usage.memory());
+//     return 0;
+// }
 
 
-int InitdHandler::Show(boost::shared_ptr<PodInfo>& info) {
-    if (info == NULL) {
-        return -1;
-    }
-
-    // copy pod info
-    MutexLock lock(&info_mutex_);
-    *info = pod_info_;
-    return 0;
-}
+// int InitdHandler::Show(boost::shared_ptr<PodInfo>& info) {
+//     if (info == NULL) {
+//         return -1;
+//     }
+// 
+//     // async update 
+//     CheckPodInfo();
+// 
+//     // copy pod info
+//     MutexLock lock(&info_mutex_);
+//     *info = pod_info_;
+//     return 0;
+// }
 
 void InitdHandler::CheckPodInfo() {
-    GetPodStatusRequest* request = new GetPodStatusRequest();
-    GetPodStatusResponse* response = new GetPodStatusResponse();
-    request->set_key(podid_);
-    SendRequestToInitd(&Initd_Stub::GetPodStatus, 
-                       request, 
-                       response);
+    // GetPodStatusRequest* request = new GetPodStatusRequest();
+    // GetPodStatusResponse* response = new GetPodStatusResponse();
+    // request->set_key(podid_);
+    // SendRequestToInitd(&Initd_Stub::GetPodStatus, 
+    //                    request, 
+    //                    response);
 }
 
 template <class Request, class Response>
@@ -167,24 +180,30 @@ void InitdHandler::SendRequestToInitd(
     delete initd;
 }
 
-template <>
-void InitdHandler::InitdCallback(const GetPodStatusRequest* request, 
-                                 GetPodStatusResponse* response, 
-                                 bool failed, int error) {
-    boost::scoped_ptr<const GetPodStatusRequest> ptr_request(request);
-    boost::scoped_ptr<GetPodStatusResponse> ptr_response(response);
-
-    if (failed || error != 0 || ptr_response->status() != kOk) {
-        LOG(WARNING, "initd rpc error[%d]", error);
-    }
-
-    const PodStatus& status = ptr_response->pod_status();
-    {
-    MutexLock lock(&info_mutex_);
-    pod_info_.usage = status;
-    }
-    return;
-}
+// template <>
+// void InitdHandler::InitdCallback(const GetPodStatusRequest* request, 
+//                                  GetPodStatusResponse* response, 
+//                                  bool failed, int error) {
+//     boost::scoped_ptr<const GetPodStatusRequest> ptr_request(request);
+//     boost::scoped_ptr<GetPodStatusResponse> ptr_response(response);
+// 
+//     if (failed || error != 0) {
+//         LOG(WARNING, "initd rpc error[%d]", error);
+//         return;
+//     }
+// 
+//     if (ptr_response->status() != kOk) {
+//         LOG(WARNING, "initd status error[%d]", ptr_response->status());
+//         return;
+//     }
+// 
+//     const PodStatus& status = ptr_response->pod_status();
+//     {
+//     MutexLock lock(&info_mutex_);
+//     pod_info_.status = status;
+//     }
+//     return;
+// }
 
 template <class Request, class Response>
 void InitdHandler::InitdCallback(const Request* request, 

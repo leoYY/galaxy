@@ -21,7 +21,11 @@ public:
     PodDesc desc;
 
     // pod dynamic infomation
-    PodStatus usage;
+    PodStatus status;
+
+    std::vector<std::string> tasksid;
+
+    int port;
 };
 
 }

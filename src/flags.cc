@@ -31,7 +31,7 @@ DEFINE_int32(agent_millicores, 123123, "agent millicores");
 DEFINE_int32(agent_memory, 123123, "agent memory");
 DEFINE_string(agent_initd_bin, "./initd", "initd bin path");
 
-DEFINE_int32(agent_monitor_pods_interval, 10, "agent monitor pods interval, unit seconds");
+DEFINE_int32(agent_monitor_tasks_interval, 2, "agent monitor pods interval, unit seconds");
 DEFINE_int32(agent_rpc_initd_timeout, 2, "agent monitor initd interval, unit seconds");
 
 // gce
