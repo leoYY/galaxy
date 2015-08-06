@@ -23,7 +23,9 @@ public:
     // pod dynamic infomation
     PodStatus status;
 
-    std::vector<std::string> task_id;
+    std::vector<std::string> tasksid;
+
+    int port;
 };
 
 }

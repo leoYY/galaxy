@@ -28,7 +28,12 @@ public:
 
     int Execute(const std::string& command);
     
-    // int Create(const PodDesc& pod);
+    int Create(const std::string& podid, 
+               const std::string& work_dir);
+
+    int GetPort() {
+        return port_;
+    }
 
     // int Delete();
 

@@ -7,7 +7,6 @@
 #include <boost/function.hpp>
 #include "mutex.h"
 #include "pod_info.h"
-#include "initd_handler.h"
 
 namespace baidu {
 
@@ -18,6 +17,7 @@ class Thread;
 namespace galaxy {
 
 class TaskManager;
+class InitdHandler;
 
 class PodManager {
 public:
@@ -41,9 +41,8 @@ private:
     };
 
     typedef std::map<std::string, boost::shared_ptr<PodInfo> > PodInfosType; 
-
-    // typedef std::map<std::string, boost::shared_ptr<InitdHandler> > PodHandlersType; 
-
+    typedef std::map<std::string, boost::shared_ptr<InitdHandler> > InitdHandlersType; 
+    
 private:
     int Load();
 
@@ -59,9 +58,15 @@ private:
 
     int DoPodOperation(const PodDesc& pod, const Operation op);
 
+    int InstallPackage();
+
 private:
     Mutex infos_mutex_;
     PodInfosType pod_infos_;
+
+    Mutex handlers_mutex_;
+    InitdHandlersType initd_handlers_;
+
     boost::scoped_ptr<TaskManager> task_manager_;
 };
 
