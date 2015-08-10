@@ -27,6 +27,20 @@ DECLARE_int64(gce_initd_zombie_check_interval);
 namespace baidu {
 namespace galaxy {
 
+InitdImpl::~InitdImpl() {
+    background_thread_.Stop(false);
+    std::map<std::string, ProcessInfo>::iterator it = 
+        process_infos_.begin();
+    for (; it != process_infos_.end(); ++it) {
+        if (it->second.status() == kProcessRunning) {
+            ::killpg(it->second.pid, SIGKILL); 
+            int status = 0;
+            ::waitpid(-1, &status, WNOHANG);
+        } 
+    }
+
+}
+
 InitdImpl::InitdImpl() :
     process_infos_(),
     lock_(),
@@ -104,7 +118,16 @@ void InitdImpl::Execute(::google::protobuf::RpcController* controller,
         return;
     }
 
+    {
+        MutexLock scope_lock(&lock_); 
+        if (process_infos_.find(request->key()) != process_infos_.end()) {
+            response->set_status(kInputError);    
+            done->Run();
+            return;
+        }
+    }
     LOG(INFO, "run command %s at %s", request->commands().c_str(), request->path().c_str());
+
 
     // 1. collect initd fds
     std::vector<int> fd_vector;
@@ -269,20 +292,6 @@ bool InitdImpl::AttachCgroup(const std::string& cgroup_path,
         }
     }
     return true;
-}
-
-
-void InitdImpl::CreatePod(::google::protobuf::RpcController* controller,
-                      const ::baidu::galaxy::CreatePodRequest* request,
-                      ::baidu::galaxy::CreatePodResponse* response,
-                      ::google::protobuf::Closure* done) {
-}
-
-
-void InitdImpl::GetPodStatus(::google::protobuf::RpcController* controller,
-                         const ::baidu::galaxy::GetPodStatusRequest* request,
-                         ::baidu::galaxy::GetPodStatusResponse* response,
-                         ::google::protobuf::Closure* done) {
 }
 
 bool InitdImpl::LoadProcessInfoCheckPoint(const ProcessInfoCheckpoint& checkpoint) {
