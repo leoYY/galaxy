@@ -2,13 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "agent/pods_manager.h"
+#include "agent/pod_manager.h"
 #include <gflags/gflags.h>
 
-static baidu::galaxy::PodsManager pods_manager;
+static baidu::galaxy::PodManager pod_manager;
 
 void TestLanuchInitd() {
-    int ret = pods_manager.LanuchInitd(8989, "hehe");
+    ::baidu::galaxy::PodInfo info;
+    info.pod_id = "test_pod";
+    info.initd_port = 8769;
+    int ret = pod_manager.LanuchInitd(&info);
     if (ret != 0) {
         fprintf(stderr, "LanuchInitd failed\n");
         return;

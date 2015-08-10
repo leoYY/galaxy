@@ -28,7 +28,7 @@ PROTOC('../../../third-64/protobuf/bin/protoc')
 INCPATHS('. ./src ./output/include ./common/include ./ins/sdk/')
 
 #使用库
-LIBS('./common/libcommon.a')
+LIBS('./common/libcommon.a ./ins/libins_sdk.a')
 
 #链接参数.
 LDFLAGS('-lpthread -lz')
@@ -62,7 +62,6 @@ master_src='src/master/master_impl.cc\
 agent_src='src/agent/agent_impl.cc\
            src/agent/agent_main.cc\
            src/agent/pod_manager.cc\
-           src/agent/initd_handler.cc\
            src/agent/utils.cc\
            src/flags.cc\
            src/proto/agent.proto\
@@ -70,7 +69,10 @@ agent_src='src/agent/agent_impl.cc\
            src/master/master_watcher.cc\
            src/proto/galaxy.proto\
            src/proto/gced.proto\
-           src/proto/initd.proto'
+           src/proto/initd.proto\
+           src/agent/cgroups.cc\
+           src/agent/task_manager.cc'
+
 
 initd_src='src/gce/initd_main.cc\
            src/gce/initd_impl.cc\
@@ -97,10 +99,10 @@ sdk_headers='src/sdk/galaxy.h'
 client_src='src/client/galaxy_client.cc \
             src/flags.cc'
 
-test_pods_manager_src='src/agent/pods_manager.cc src/agent/test_pods_manager.cc  \
+test_pod_manager_src='src/agent/pod_manager.cc src/agent/test_pod_manager.cc src/agent/cgroups.cc \
                         src/flags.cc src/proto/galaxy.proto src/agent/utils.cc src/proto/initd.proto src/agent/task_manager.cc'
 
-test_task_manager_src='src/agent/task_manager.cc src/flags.cc \
+test_task_manager_src='src/agent/task_manager.cc src/flags.cc src/agent/cgroups.cc\
                       src/proto/galaxy.proto src/agent/utils.cc src/proto/initd.proto src/agent/test_task_manager.cc'
 
 test_initd_src='src/gce/test_initd.cc src/proto/initd.proto src/proto/galaxy.proto'
@@ -112,6 +114,6 @@ Application('initd',Sources(initd_src))
 Application('gced',Sources(gced_src))
 StaticLibrary('galaxy',Sources(sdk_src),HeaderFiles(sdk_headers))
 Application('galaxy',Sources(client_src), Libraries('./libgalaxy.a ./common/libcommon.a'))
-Application('test_pods_manager', Sources(test_pods_manager_src, ENV.CppFlags() + CppFlags('-Dprotected=public')))
+Application('test_pod_manager', Sources(test_pod_manager_src, ENV.CppFlags() + CppFlags('-Dprotected=public')))
 Application('test_task_manager', Sources(test_task_manager_src));
 Application('test_initd', Sources(test_initd_src));

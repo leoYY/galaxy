@@ -44,6 +44,29 @@ TaskManager::TaskManager() :
 }
 
 TaskManager::~TaskManager() {
+    if (rpc_client_ != NULL) {
+        delete rpc_client_; 
+        rpc_client_ = NULL;
+    }
+}
+
+int TaskManager::Init() {
+    std::vector<std::string> sub_systems;
+    boost::split(sub_systems,
+            FLAGS_gce_support_subsystems,
+            boost::is_any_of(","),
+            boost::token_compress_on);      
+    for (size_t i = 0; i < sub_systems.size(); i++) {
+        std::string hierarchy = 
+            FLAGS_gce_cgroup_root + "/" + sub_systems[i];         
+        if (!file::IsExists(hierarchy)) {
+            LOG(WARNING, "hierarchy %s not exists",
+                    hierarchy.c_str());
+            return -1;
+        }
+        hierarchies_.push_back(hierarchy);
+    }  
+    return 0;
 }
 
 int TaskManager::CreateTask(const TaskInfo& task) {
