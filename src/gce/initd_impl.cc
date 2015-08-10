@@ -54,16 +54,20 @@ InitdImpl::InitdImpl() :
 
 void InitdImpl::ZombieCheck() {
     int status = 0;
+    // TODO WUNTRACED ?
     pid_t pid = ::waitpid(-1, &status, WNOHANG);    
-    if (pid > 0 && WIFEXITED(status)) {
-        LOG(WARNING, "process %d exit ret %d",
-                pid, WEXITSTATUS(status));
+    if (pid > 0) {
         MutexLock scope_lock(&lock_);
         std::map<std::string, ProcessInfo>::iterator it
             = process_infos_.begin();
         for (; it != process_infos_.end(); ++it) {
             if (it->second.pid() == pid) {
-                it->second.set_exit_code(WEXITSTATUS(status)); 
+                if (WIFEXITED(status)) {
+                    it->second.set_exit_code(WEXITSTATUS(status)); 
+                } else if (WIFSIGNALED(status)) {
+                    it->second.set_exit_code(128 + WTERMSIG(status));
+                } 
+                LOG(WARNING, "process %d exit code %d", pid, it->second.exit_code());
                 it->second.set_status(kProcessTerminate);
                 break;
             } 
@@ -99,6 +103,7 @@ void InitdImpl::GetProcessStatus(::google::protobuf::RpcController* /*controller
         done->Run(); 
         return;
     }
+
     response->mutable_process()->CopyFrom(it->second);
     response->set_status(kOk);
     done->Run();
@@ -120,13 +125,18 @@ void InitdImpl::Execute(::google::protobuf::RpcController* controller,
 
     {
         MutexLock scope_lock(&lock_); 
-        if (process_infos_.find(request->key()) != process_infos_.end()) {
+        std::map<std::string, ProcessInfo>::iterator it = process_infos_.find(request->key());
+        if (it != process_infos_.end()
+                && it->second.status() == kProcessRunning) {
             response->set_status(kInputError);    
             done->Run();
             return;
         }
     }
-    LOG(INFO, "run command %s at %s", request->commands().c_str(), request->path().c_str());
+    LOG(INFO, "run command %s at %s in cgroup %s", 
+            request->commands().c_str(), 
+            request->path().c_str(),
+            request->cgroup_path().c_str());
 
 
     // 1. collect initd fds
