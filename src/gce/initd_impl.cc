@@ -128,7 +128,8 @@ void InitdImpl::Execute(::google::protobuf::RpcController* controller,
         std::map<std::string, ProcessInfo>::iterator it = process_infos_.find(request->key());
         if (it != process_infos_.end()
                 && it->second.status() == kProcessRunning) {
-            response->set_status(kInputError);    
+            // NOTE process already running no need run again
+            response->set_status(kOk);    
             done->Run();
             return;
         }
