@@ -35,7 +35,25 @@ struct TaskInfo {
     std::string cgroup_path;
     std::string task_workspace;
     int fail_retry_times;
+    int max_retry_times;
     int stop_timeout_point;
+    TaskInfo() 
+        : task_id(), 
+          pod_id(), 
+          desc(), 
+          status(),
+          initd_endpoint(),
+          stage(),
+          main_process(),
+          deploy_process(),
+          stop_process(),
+          cgroup_path(),
+          task_workspace(),
+          fail_retry_times(0),
+          max_retry_times(3),
+          stop_timeout_point(0) {
+    }
+
     TaskInfo(const TaskInfo& task) {
         task_id = task.task_id; 
         pod_id = task.pod_id;
@@ -49,6 +67,7 @@ struct TaskInfo {
         cgroup_path = task.cgroup_path;
         task_workspace = task.task_workspace;
         fail_retry_times = task.fail_retry_times;
+        max_retry_times = task.max_retry_times;
         stop_timeout_point = task.stop_timeout_point;
     }
 };

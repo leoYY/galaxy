@@ -40,6 +40,7 @@ TaskManager::TaskManager() :
     cgroup_root_(FLAGS_gce_cgroup_root),
     hierarchies_(),
     rpc_client_(NULL) {
+    rpc_client_ = new RpcClient();
 }
 
 TaskManager::~TaskManager() {
@@ -64,6 +65,7 @@ int TaskManager::CreateTask(const TaskInfo& task) {
                 task_info->task_id.c_str());
         return -1;
     }
+    LOG(INFO, "task %s is add", task.task_id.c_str());
     background_thread_.DelayTask(
                     50, 
                     boost::bind(
@@ -82,6 +84,7 @@ int TaskManager::DeleteTask(const std::string& task_id) {
         return 0; 
     }
 
+    LOG(INFO, "task %s is add to delete", task_id.c_str());
     TerminateTask(it->second);
     return 0;
 }
@@ -99,7 +102,7 @@ int TaskManager::RunTask(TaskInfo* task_info) {
     initd_request.set_key(task_info->main_process.key());
     initd_request.set_commands(task_info->desc.start_command());
     initd_request.set_path(task_info->task_workspace);
-    initd_request.set_cgroup_path(task_info->task_id);
+    initd_request.set_cgroup_path(task_info->cgroup_path);
     std::string* pod_id = initd_request.add_envs();
     pod_id->append("POD_ID=");
     pod_id->append(task_info->pod_id);
@@ -119,21 +122,37 @@ int TaskManager::RunTask(TaskInfo* task_info) {
                                         &initd_request, 
                                         &initd_response, 5, 1);
     if (!ret) {
-        LOG(WARNING, "start command %s rpc failed for %s",
+        LOG(WARNING, "start command [%s] rpc failed for %s",
                 task_info->desc.start_command().c_str(),
                 task_info->task_id.c_str()); 
         return -1;
     } else if (initd_response.has_status()
             && initd_response.status() != kOk) {
-        LOG(WARNING, "start command %s failed %s for %s",
+        LOG(WARNING, "start command [%s] failed %s for %s",
                 task_info->desc.start_command().c_str(),
                 Status_Name(initd_response.status()).c_str(),
                 task_info->task_id.c_str()); 
         return -1;
     }
-    LOG(INFO, "start command %s execute success for %s",
+    LOG(INFO, "start command [%s] execute success for %s",
             task_info->desc.start_command().c_str(),
             task_info->task_id.c_str());
+    return 0;
+}
+
+int TaskManager::QueryTask(TaskInfo* task_info) {
+    if (task_info == NULL) {
+        return -1; 
+    }
+    MutexLock scope_lock(&tasks_mutex_);    
+    std::map<std::string, TaskInfo*>::iterator it = 
+        tasks_.find(task_info->task_id);      
+    if (it == tasks_.end()) {
+        LOG(WARNING, "query task %s not exists", 
+                task_info->task_id.c_str());
+        return -1; 
+    }
+    task_info->status.CopyFrom(it->second->status);
     return 0;
 }
 
@@ -150,7 +169,7 @@ int TaskManager::TerminateTask(TaskInfo* task_info) {
     initd_request.set_key(task_info->stop_process.key());
     initd_request.set_commands(stop_command);
     initd_request.set_path(task_info->task_workspace);
-    initd_request.set_cgroup_path(task_info->task_id);
+    initd_request.set_cgroup_path(task_info->cgroup_path);
     Initd_Stub* initd;
     if (!rpc_client_->GetStub(task_info->initd_endpoint, &initd)) {
         LOG(WARNING, "get stub failed"); 
@@ -163,19 +182,19 @@ int TaskManager::TerminateTask(TaskInfo* task_info) {
                                         &initd_response,
                                         5, 1);
     if (!ret) {
-        LOG(WARNING, "stop command %s rpc failed for %s",
+        LOG(WARNING, "stop command [%s] rpc failed for %s",
                 stop_command.c_str(),
                 task_info->task_id.c_str()); 
         return -1;
     } else if (initd_response.has_status()
                 && initd_response.status() != kOk) {
-        LOG(WARNING, "stop command %s failed %s for %s",
+        LOG(WARNING, "stop command [%s] failed %s for %s",
                 stop_command.c_str(),
                 Status_Name(initd_response.status()).c_str(),
                 task_info->task_id.c_str()); 
         return -1;
     }
-    LOG(INFO, "stop command %s execute success for %s",
+    LOG(INFO, "stop command [%s] execute success for %s",
             stop_command.c_str(),
             task_info->task_id.c_str());
     int32_t now_time = common::timer::now_time();
@@ -254,6 +273,7 @@ int TaskManager::CleanTask(TaskInfo* task_info) {
                 task_info->task_id.c_str());
         return -1;
     }
+    LOG(INFO, "task %s clean success", task_info->task_id.c_str());
     return 0;
 }
 
@@ -297,7 +317,7 @@ int TaskManager::DeployTask(TaskInfo* task_info) {
     initd_request.set_key(task_info->deploy_process.key());
     initd_request.set_commands(deploy_command);
     initd_request.set_path(task_info->task_workspace);
-    initd_request.set_cgroup_path(task_info->task_id);
+    initd_request.set_cgroup_path(task_info->cgroup_path);
     Initd_Stub* initd;
     if (!rpc_client_->GetStub(
                 task_info->initd_endpoint, &initd)) {
@@ -310,22 +330,22 @@ int TaskManager::DeployTask(TaskInfo* task_info) {
                     &initd_request,
                     &initd_response,
                     5, 1);
-    if (ret != 0) {
+    if (!ret) {
         LOG(WARNING, "deploy command "
-                "%s execute rpc failed for %s",
+                "[%s] execute rpc failed for %s",
                 deploy_command.c_str(),
                 task_info->task_id.c_str());
         return -1;
     } else if (initd_response.has_status() 
             && initd_response.status() != kOk) {
         LOG(WARNING, "deploy command "
-                "%s execute failed %s for %s",
+                "[%s] execute failed %s for %s",
                 deploy_command.c_str(),
                 Status_Name(initd_response.status()).c_str(),
                 task_info->task_id.c_str()); 
         return -1;
     }
-    LOG(INFO, "deploy command %s execute success for %s",
+    LOG(INFO, "deploy command [%s] execute success for %s",
             deploy_command.c_str(),
             task_info->task_id.c_str());
     return 0;
@@ -481,6 +501,8 @@ int TaskManager::RunProcessCheck(TaskInfo* task_info) {
         task_info->status.set_state(kPodError);
         return -1;
     }
+    LOG(INFO, "task %s main process exit 0",
+            task_info->task_id.c_str());
     task_info->status.set_state(kPodTerminate); 
     return 1;
 }
@@ -518,7 +540,12 @@ void TaskManager::DelayCheckTaskStageChange(const std::string& task_id) {
     } else if (task_info->stage == kStageRUNNING
             && task_info->status.state() != kPodError) {
         int chk_res = RunProcessCheck(task_info);
-        // TODO restart
+        if (chk_res == -1 && 
+                task_info->fail_retry_times 
+                    < task_info->max_retry_times) {
+            task_info->fail_retry_times++;
+            RunTask(task_info);         
+        }
     } else if (task_info->stage == kStageSTOPPING) {
         int chk_res = TerminateProcessCheck(task_info);
         if (chk_res != 0) {

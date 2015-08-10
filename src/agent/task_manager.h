@@ -20,7 +20,7 @@ public:
     int Init();
     int CreateTask(const TaskInfo& task);
     int DeleteTask(const std::string& task_id);
-    int QueryTasks(TaskInfo* task);
+    int QueryTask(TaskInfo* task);
 protected:
     int QueryProcessInfo(const std::string& initd_endpoint,
                          ProcessInfo* process_info);
