@@ -65,6 +65,21 @@ int TaskManager::CreateTask(const TaskInfo& task) {
                 task_info->task_id.c_str());
         return -1;
     }
+    if (PrepareCgroupEnv(task_info) != 0) {
+        LOG(WARNING, "task %s prepare cgroup failed",
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+    if (PrepareResourceCollector(task_info) != 0) {
+        LOG(WARNING, "task %s prepare resource collector failed",
+                task_info->task_id.c_str()); 
+        return -1;
+    }
+    if (PrepareVolumeEnv(task_info) != 0) {
+        LOG(WARNING, "task %s prepare volume env failed",
+                task_info->task_id.c_str()); 
+        return -1;
+    }
     LOG(INFO, "task %s is add", task.task_id.c_str());
     background_thread_.DelayTask(
                     50, 
@@ -203,7 +218,68 @@ int TaskManager::TerminateTask(TaskInfo* task_info) {
     return 0;
 }
 
-int TaskManager::PrepareCgroupEnv(TaskInfo* /*task_info*/) {
+int TaskManager::PrepareCgroupEnv(TaskInfo* task) {
+    if (task == NULL) {
+        return -1; 
+    }
+    std::vector<std::string>::iterator hier_it = 
+        hierarchies_.begin();
+    std::string cgroup_name = task->task_id;
+    for (; hier_it != hierarchies_.end(); ++ hier_it) {
+        std::string cgroup_dir = *hier_it;
+        cgroup_dir.append("/");
+        cgroup_dir.append(cgroup_name);
+        if (!file::Mkdir(cgroup_dir)) {
+            LOG(WARNING, "create dir %s failed for %s",
+                    cgroup_dir.c_str(), task->task_id.c_str()); 
+            return -1;
+        }              
+    }
+    // TODO use cpu share ?
+    std::string cpu_hierarchy = FLAGS_gce_cgroup_root + "/cpu"; 
+    std::string mem_hierarchy = FLAGS_gce_cgroup_root + "/memory";
+    // set cpu share 
+    int32_t cpu_share = 
+        task->desc.requirement().millicores() * 512;
+    if (cgroups::Write(cpu_hierarchy, 
+                cgroup_name, 
+                "cpu.share", 
+                boost::lexical_cast<std::string>(cpu_share)
+                ) != 0) {
+        LOG(WARNING, "set cpu share %d failed for %s", 
+                cpu_share,
+                cgroup_name.c_str()); 
+        return -1;
+    }
+    // set memory limit
+    int64_t memory_limit = 
+            1024L * 1024 * task->desc.requirement().memory();
+    if (cgroups::Write(mem_hierarchy, 
+                cgroup_name, 
+                "memory.limit_in_bytes", 
+                boost::lexical_cast<std::string>(memory_limit)
+                ) != 0) {
+        LOG(WARNING, "set memory limit %ld failed for %s",
+                memory_limit,
+                cgroup_name.c_str()); 
+        return -1;
+    } 
+
+    const int GROUP_KILL_MODE = 1;
+    if (file::IsExists(mem_hierarchy 
+                + "/" + cgroup_name + "/memory.kill_mode")
+            && cgroups::Write(mem_hierarchy, 
+                cgroup_name, 
+                "memory.kill_mode", 
+                boost::lexical_cast<std::string>(GROUP_KILL_MODE)
+                ) != 0) {
+        LOG(WARNING, "set memory kill mode failed for %s",
+                cgroup_name.c_str());
+        return -1;
+    }
+
+    return 0;
+
     return 0;
 }
 
@@ -223,7 +299,43 @@ int TaskManager::CleanResourceCollector(TaskInfo* /*task_info*/) {
     return 0;
 }
 
-int TaskManager::CleanCgroupEnv(TaskInfo* /*task_info*/) {
+int TaskManager::CleanCgroupEnv(TaskInfo* task) {
+    if (task == NULL) {
+        return -1; 
+    } 
+    // TODO do set control_file  frozen ?
+    std::vector<std::string>::iterator hier_it = 
+        hierarchies_.begin();
+    std::string cgroup = task->task_id;
+    for (; hier_it != hierarchies_.end(); ++hier_it) {
+        std::string cgroup_dir = *hier_it;
+        cgroup_dir.append("/");
+        cgroup_dir.append(cgroup);
+        if (!file::IsExists(cgroup_dir)) {
+            LOG(INFO, "%s %s not exists",
+                    (*hier_it).c_str(), cgroup.c_str()); 
+            continue;
+        }
+        std::vector<std::string> pids;
+        if (!cgroups::GetPidsFromCgroup(*hier_it, cgroup, &pids)) {
+            LOG(WARNING, "get pids from %s failed",
+                    cgroup.c_str());  
+            return -1;
+        }
+        std::vector<std::string>::iterator pid_it = pids.begin();
+        for (; pid_it != pids.end(); ++pid_it) {
+            int pid = ::atoi((*pid_it).c_str());
+            if (pid != 0) {
+                ::kill(pid, SIGKILL); 
+            }
+        }
+        if (::rmdir(cgroup_dir.c_str()) != 0
+                && errno != ENOENT) {
+            LOG(WARNING, "rmdir %s failed err[%d: %s]",
+                    cgroup_dir.c_str(), errno, strerror(errno));
+            return -1;
+        }
+    }
     return 0;
 }
 
