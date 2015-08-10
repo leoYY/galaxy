@@ -33,7 +33,7 @@ InitdImpl::~InitdImpl() {
         process_infos_.begin();
     for (; it != process_infos_.end(); ++it) {
         if (it->second.status() == kProcessRunning) {
-            ::killpg(it->second.pid, SIGKILL); 
+            ::killpg(it->second.pid(), SIGKILL); 
             int status = 0;
             ::waitpid(-1, &status, WNOHANG);
         } 
