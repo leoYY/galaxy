@@ -264,11 +264,6 @@ int PodManager::UpdatePod(const std::string& /*pod_id*/, const PodInfo& /*info*/
     return -1;
 }
 
-static void LogTracePodInfo(const PodInfo& pod_info) {
-    LOG(INFO, "pod info id %s port %d pid %d task size %u",
-            pod_info.pod_id.c_str(), pod_info.initd_port, pod_info.initd_pid, pod_info.tasks.size());
-}
-
 int PodManager::AddPod(const PodInfo& info) {
     // NOTE locked by agent
     std::map<std::string, PodInfo>::iterator pods_it = 
