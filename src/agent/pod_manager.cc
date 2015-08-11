@@ -29,10 +29,11 @@
 #define CLONE_NEWUTS 0x04000000
 #endif 
 
-DECLARE_string(gce_initd_bin);
-DECLARE_string(gce_work_dir);
+DECLARE_string(agent_initd_bin);
+DECLARE_string(agent_work_dir);
 DECLARE_int32(agent_initd_port_begin);
 DECLARE_int32(agent_initd_port_end);
+DECLARE_bool(agent_namespace_isolation_switch);
 
 namespace baidu {
 namespace galaxy {
@@ -90,6 +91,62 @@ int PodManager::Init() {
     return task_manager_->Init();
 }
 
+int PodManager::LanuchInitdByFork(PodInfo* info) {
+    if (info == NULL) {
+        return -1;
+    }
+
+    // 1. collect agent fds
+    std::vector<int> fd_vector;
+    process::GetProcessOpenFds(::getpid(), &fd_vector);
+    // 2. prepare std fds for child
+    int stdout_fd = -1;
+    int stderr_fd = -1;
+    std::string path = FLAGS_agent_work_dir;
+    path.append("/");
+    path.append(info->pod_id);
+    std::string command = FLAGS_agent_initd_bin;
+    command.append(" --gce_initd_port=");
+    command.append(boost::lexical_cast<std::string>(info->initd_port));
+    file::Mkdir(path);
+    if (!process::PrepareStdFds(path, &stdout_fd, &stderr_fd)) {
+        LOG(WARNING, "prepare std fds for pod %s failed",
+                info->pod_id.c_str()); 
+        if (stdout_fd != -1) {
+            ::close(stdout_fd);
+        }
+        if (stderr_fd != -1) {
+            ::close(stderr_fd); 
+        }
+        return -1;
+    }
+
+    pid_t child_pid = ::fork();
+    if (child_pid == -1) {
+        LOG(WARNING, "fork %s failed err[%d: %s]",
+                info->pod_id.c_str(), errno, strerror(errno)); 
+        return -1;
+    } else if (child_pid == 0) {
+        pid_t my_pid = ::getpid(); 
+        process::PrepareChildProcessEnvStep1(my_pid,
+                path.c_str());
+        process::PrepareChildProcessEnvStep2(stdout_fd, 
+                                             stderr_fd, 
+                                             fd_vector);
+        char* argv[] = {
+            const_cast<char*>("sh"),
+            const_cast<char*>("-c"),
+            const_cast<char*>(command.c_str()),
+            NULL};
+        ::execv("/bin/sh", argv);
+        assert(0);
+    } 
+    ::close(stdout_fd);
+    ::close(stderr_fd);
+    info->initd_pid = child_pid;
+    return 0;
+}
+
 int PodManager::LanuchInitd(PodInfo* info) {
     if (info == NULL) {
         return -1; 
@@ -102,10 +159,10 @@ int PodManager::LanuchInitd(PodInfo* info) {
     LanuchInitdContext context;
     context.stdout_fd = 0; 
     context.stderr_fd = 0;
-    context.start_command = FLAGS_gce_initd_bin;
+    context.start_command = FLAGS_agent_initd_bin;
     context.start_command.append(" --gce_initd_port=");
     context.start_command.append(boost::lexical_cast<std::string>(info->initd_port));
-    context.path = FLAGS_gce_work_dir + "/" + info->pod_id;
+    context.path = FLAGS_agent_work_dir + "/" + info->pod_id;
     if (!file::Mkdir(context.path)) {
         LOG(WARNING, "mkdir %s failed", context.path.c_str()); 
         return -1;
@@ -207,6 +264,11 @@ int PodManager::UpdatePod(const std::string& /*pod_id*/, const PodInfo& /*info*/
     return -1;
 }
 
+static void LogTracePodInfo(const PodInfo& pod_info) {
+    LOG(INFO, "pod info id %s port %d pid %d task size %u",
+            pod_info.pod_id.c_str(), pod_info.initd_port, pod_info.initd_pid, pod_info.tasks.size());
+}
+
 int PodManager::AddPod(const PodInfo& info) {
     // NOTE locked by agent
     std::map<std::string, PodInfo>::iterator pods_it = 
@@ -219,19 +281,27 @@ int PodManager::AddPod(const PodInfo& info) {
     }
     pods_[info.pod_id] = info;
     PodInfo& internal_info = pods_[info.pod_id];
+
     if (AllocPortForInitd(internal_info.initd_port) != 0){
         LOG(WARNING, "pod %s alloc port for initd failed",
-                info.pod_id.c_str());            
+                internal_info.pod_id.c_str());            
         return -1;
     }
-    if (LanuchInitd(&internal_info) != 0) {
+    int lanuch_initd_ret = -1;
+    if (FLAGS_agent_namespace_isolation_switch) {
+        lanuch_initd_ret = LanuchInitd(&internal_info);
+    } else {
+        lanuch_initd_ret = LanuchInitdByFork(&internal_info); 
+    }
+
+    if (lanuch_initd_ret != 0) {
         LOG(WARNING, "lanuch initd for %s failed",
-                info.pod_id.c_str()); 
+                internal_info.pod_id.c_str()); 
         return -1;
     }                    
     std::map<std::string, TaskInfo>::iterator task_it = 
         internal_info.tasks.begin();
-    for (; task_it != info.tasks.end(); ++task_it) {
+    for (; task_it != internal_info.tasks.end(); ++task_it) {
         task_it->second.initd_endpoint = "127.0.0.1:";
         task_it->second.initd_endpoint.append(
                 boost::lexical_cast<std::string>(
@@ -239,7 +309,7 @@ int PodManager::AddPod(const PodInfo& info) {
         int ret = task_manager_->CreateTask(task_it->second);
         if (ret != 0) {
             LOG(WARNING, "create task ind %s for pods %s failed",
-                    task_it->first.c_str(), info.pod_id.c_str()); 
+                    task_it->first.c_str(), internal_info.pod_id.c_str()); 
             return -1;
         }
     }
@@ -248,6 +318,7 @@ int PodManager::AddPod(const PodInfo& info) {
 
 int PodManager::AllocPortForInitd(int& port) {
     if (initd_free_ports_.size() == 0) {
+        LOG(WARNING, "no free ports for alloc");
         return -1; 
     }
     port = initd_free_ports_.front();

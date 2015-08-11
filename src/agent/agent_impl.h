@@ -11,7 +11,6 @@
 #include "sofa/pbrpc/pbrpc.h"
 #include "proto/agent.pb.h"
 #include "proto/master.pb.h"
-#include "proto/gced.pb.h"
 
 #include "mutex.h"
 #include "thread_pool.h"

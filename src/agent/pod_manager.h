@@ -38,6 +38,7 @@ protected:
     void ReleasePortFromInitd(int port);
 
     int LanuchInitd(PodInfo* info); 
+    int LanuchInitdByFork(PodInfo* info);
     //int LanuchInitdByFork(PodInfo* info);
     //Mutex pods_lock_;
     std::map<std::string, PodInfo> pods_;

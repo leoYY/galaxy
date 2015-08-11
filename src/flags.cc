@@ -24,6 +24,7 @@ DEFINE_string(jobs_store_path, "/jobs", "");
 
 // agent
 DEFINE_string(agent_port, "8080", "agent listen port");
+DEFINE_string(agent_work_dir, "./work_dir", "the work dir for storaging job package and runtime dir");
 DEFINE_int32(agent_background_threads_num, 2, "agent background threads");
 DEFINE_int32(agent_heartbeat_interval, 1000, "agent haertbeat interval ms");
 DEFINE_string(agent_ip, "127.0.0.1", "agent host ip");
@@ -39,10 +40,8 @@ DEFINE_int32(agent_initd_port_end, 9500, "agent initd port used end");
 
 // gce
 DEFINE_string(gce_cgroup_root, "/cgroups/", "Cgroup root mount path");
-DEFINE_string(gce_support_subsystems, "cpu,memory,cpuacct,frozen", "Cgroup default support subsystems");
+DEFINE_string(gce_support_subsystems, "", "Cgroup default support subsystems");
 DEFINE_int64(gce_initd_zombie_check_interval, 100, "Initd Zombie Check Interval");
 DEFINE_string(gce_initd_dump_file, "initd_checkpoint_file", "Initd Checkpoint File Name");
 DEFINE_string(gce_initd_port, "8765", "gce initd listen port");
 DEFINE_string(gce_gced_port, "8766", "gce initd listen port");
-DEFINE_string(gce_initd_bin, "./initd", "initd bin path");
-DEFINE_string(gce_work_dir, "./work_dir", "the work dir for storaging job package and runtime dir");

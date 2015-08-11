@@ -49,6 +49,7 @@ protected:
     int DeployProcessCheck(TaskInfo* task_info);
     int RunProcessCheck(TaskInfo* task_info);
     int TerminateProcessCheck(TaskInfo* task_info);
+    int InitdProcessCheck(TaskInfo* task_info);
 
     void DelayCheckTaskStageChange(const std::string& task_id);
 protected:

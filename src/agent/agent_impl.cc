@@ -188,6 +188,9 @@ bool AgentImpl::Init() {
     resource_capacity_.millicores = FLAGS_agent_millicores;
     resource_capacity_.memory = FLAGS_agent_memory;
     
+    if (pod_manager_.Init() != 0) {
+        return false; 
+    }
     if (!RegistToMaster()) {
         return false; 
     }

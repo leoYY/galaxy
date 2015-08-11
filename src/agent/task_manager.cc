@@ -28,7 +28,7 @@
 
 DECLARE_string(gce_cgroup_root);
 DECLARE_string(gce_support_subsystems);
-DECLARE_string(gce_work_dir);
+DECLARE_string(agent_work_dir);
 
 namespace baidu {
 namespace galaxy {
@@ -51,21 +51,23 @@ TaskManager::~TaskManager() {
 }
 
 int TaskManager::Init() {
-    std::vector<std::string> sub_systems;
-    boost::split(sub_systems,
-            FLAGS_gce_support_subsystems,
-            boost::is_any_of(","),
-            boost::token_compress_on);      
-    for (size_t i = 0; i < sub_systems.size(); i++) {
-        std::string hierarchy = 
-            FLAGS_gce_cgroup_root + "/" + sub_systems[i];         
-        if (!file::IsExists(hierarchy)) {
-            LOG(WARNING, "hierarchy %s not exists",
-                    hierarchy.c_str());
-            return -1;
-        }
-        hierarchies_.push_back(hierarchy);
-    }  
+    if (!FLAGS_gce_support_subsystems.empty()) {
+        std::vector<std::string> sub_systems;
+        boost::split(sub_systems,
+                FLAGS_gce_support_subsystems,
+                boost::is_any_of(","),
+                boost::token_compress_on);      
+        for (size_t i = 0; i < sub_systems.size(); i++) {
+            std::string hierarchy = 
+                FLAGS_gce_cgroup_root + "/" + sub_systems[i];         
+            if (!file::IsExists(hierarchy)) {
+                LOG(WARNING, "hierarchy %s not exists",
+                        hierarchy.c_str());
+                return -1;
+            }
+            hierarchies_.push_back(hierarchy);
+        }  
+    }
     return 0;
 }
 
@@ -109,6 +111,7 @@ int TaskManager::CreateTask(const TaskInfo& task) {
                     boost::bind(
                         &TaskManager::DelayCheckTaskStageChange,
                         this, task_info->task_id));
+    return 0;
 }
 
 int TaskManager::DeleteTask(const std::string& task_id) {
@@ -245,6 +248,9 @@ int TaskManager::PrepareCgroupEnv(TaskInfo* task) {
     if (task == NULL) {
         return -1; 
     }
+    if (hierarchies_.size() == 0) {
+        return 0; 
+    }
     std::vector<std::string>::iterator hier_it = 
         hierarchies_.begin();
     std::string cgroup_name = task->task_id;
@@ -326,6 +332,9 @@ int TaskManager::CleanCgroupEnv(TaskInfo* task) {
     if (task == NULL) {
         return -1; 
     } 
+    if (hierarchies_.size() == 0) {
+        return 0; 
+    }
     // TODO do set control_file  frozen ?
     std::vector<std::string>::iterator hier_it = 
         hierarchies_.begin();
@@ -526,7 +535,7 @@ int TaskManager::QueryProcessInfo(const std::string& initd_endpoint,
 }
 
 int TaskManager::PrepareWorkspace(TaskInfo* task) {
-    std::string workspace_root = FLAGS_gce_work_dir;
+    std::string workspace_root = FLAGS_agent_work_dir;
     workspace_root.append("/");
     workspace_root.append(task->pod_id);
     if (!file::Mkdir(workspace_root)) {
@@ -542,6 +551,8 @@ int TaskManager::PrepareWorkspace(TaskInfo* task) {
         return -1;
     }
     task->task_workspace = task_workspace;
+    LOG(INFO, "task %s workspace %s",
+            task->task_id.c_str(), task->task_workspace.c_str());
     return 0;
 }
 
@@ -552,7 +563,7 @@ int TaskManager::CleanWorkspace(TaskInfo* task) {
                 task->task_id.c_str());
         return -1;
     }
-    std::string workspace_root = FLAGS_gce_work_dir;
+    std::string workspace_root = FLAGS_agent_work_dir;
     workspace_root.append("/");
     workspace_root.append(task->pod_id);
     if (file::IsExists(workspace_root)
@@ -612,6 +623,39 @@ int TaskManager::DeployProcessCheck(TaskInfo* task_info) {
     return 1;     
 }
 
+int TaskManager::InitdProcessCheck(TaskInfo* task_info) {
+    const int MAX_INITD_CHECK_TIME = 10;
+    if (task_info == NULL) {
+        return -1; 
+    }
+    std::string initd_endpoint = task_info->initd_endpoint; 
+    // only use to check rpc connected
+    GetProcessStatusRequest initd_request; 
+    GetProcessStatusResponse initd_response;
+    Initd_Stub* initd;
+    if (!rpc_client_->GetStub(initd_endpoint, &initd)) {
+        LOG(WARNING, "get rpc stub failed"); 
+        return -1;
+    }
+
+    bool ret = rpc_client_->SendRequest(initd,
+                                        &Initd_Stub::GetProcessStatus,
+                                        &initd_request,
+                                        &initd_response,
+                                        5, 1);
+    if (!ret) {
+        task_info->initd_check_failed ++;
+        if (task_info->initd_check_failed 
+                >= MAX_INITD_CHECK_TIME) {
+            LOG(WARNING, "check initd times %d more than %d",
+                    task_info->initd_check_failed, MAX_INITD_CHECK_TIME);
+            return -1; 
+        }
+        return 0;
+    }     
+    return 1;
+}
+
 int TaskManager::RunProcessCheck(TaskInfo* task_info) {
     // 1. query main_process status
     if (QueryProcessInfo(task_info->initd_endpoint, 
@@ -654,11 +698,16 @@ void TaskManager::DelayCheckTaskStageChange(const std::string& task_id) {
     // switch task stage
     if (task_info->stage == kStagePENDING 
             && task_info->status.state() != kPodError) {
-        if (DeployTask(task_info) != 0) {
+        int chk_res = InitdProcessCheck(task_info);
+        if (chk_res == 1 && DeployTask(task_info) != 0) {
             LOG(WARNING, "task %s deploy failed",
                     task_info->task_id.c_str());
             task_info->status.set_state(kPodError); 
-        } 
+        } else if (chk_res == -1) {
+            LOG(WARNING, "task %s check initd failed",
+                    task_info->task_id.c_str()); 
+            task_info->status.set_state(kPodError);
+        }
     } else if (task_info->stage == kStageDEPLOYING
             && task_info->status.state() != kPodError) {
         int chk_res = DeployProcessCheck(task_info);

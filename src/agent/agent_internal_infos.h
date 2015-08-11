@@ -29,14 +29,17 @@ struct TaskInfo {
     TaskStatus status;
     std::string initd_endpoint;
     TaskStage stage;
+
     ProcessInfo main_process;
     ProcessInfo deploy_process;
     ProcessInfo stop_process;
+
     std::string cgroup_path;
     std::string task_workspace;
     int fail_retry_times;
     int max_retry_times;
     int stop_timeout_point;
+    int initd_check_failed;
     TaskInfo() 
         : task_id(), 
           pod_id(), 
@@ -51,7 +54,8 @@ struct TaskInfo {
           task_workspace(),
           fail_retry_times(0),
           max_retry_times(3),
-          stop_timeout_point(0) {
+          stop_timeout_point(0),
+          initd_check_failed(0) {
     }
 
     TaskInfo(const TaskInfo& task) {
@@ -69,6 +73,7 @@ struct TaskInfo {
         fail_retry_times = task.fail_retry_times;
         max_retry_times = task.max_retry_times;
         stop_timeout_point = task.stop_timeout_point;
+        initd_check_failed = task.initd_check_failed;
     }
 };
 
@@ -79,6 +84,23 @@ struct PodInfo {
     int initd_port;
     int initd_pid;
     std::map<std::string, TaskInfo> tasks;
+    PodInfo() 
+        : pod_id(), 
+          pod_desc(),
+          pod_status(),
+          initd_port(-1),
+          initd_pid(-1),
+          tasks() {
+    }
+
+    PodInfo(const PodInfo& pod_info) {
+        pod_id = pod_info.pod_id;     
+        pod_desc.CopyFrom(pod_info.pod_desc);
+        pod_status.CopyFrom(pod_info.pod_status);
+        initd_port = pod_info.initd_port;
+        initd_pid = pod_info.initd_pid;
+        tasks = pod_info.tasks;
+    }
 };
 
 }   // ending namespace galaxy
