@@ -157,8 +157,8 @@ int PodManager::LanuchInitd(PodInfo* info) {
     static char CLONE_STACK[CLONE_STACK_SIZE];
     
     LanuchInitdContext context;
-    context.stdout_fd = 0; 
-    context.stderr_fd = 0;
+    context.stdout_fd = -1; 
+    context.stderr_fd = -1;
     context.start_command = FLAGS_agent_initd_bin;
     context.start_command.append(" --gce_initd_port=");
     context.start_command.append(boost::lexical_cast<std::string>(info->initd_port));
@@ -173,6 +173,12 @@ int PodManager::LanuchInitd(PodInfo* info) {
                                 &context.stderr_fd)) {
         LOG(WARNING, "prepare %s std file failed", 
                 context.path.c_str()); 
+        if (context.stdout_fd > 0) {
+            ::close(context.stdout_fd); 
+        }
+        if (context.stderr_fd > 0) {
+            ::close(context.stderr_fd); 
+        }
         return -1;
     }
     
