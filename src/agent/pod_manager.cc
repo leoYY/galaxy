@@ -187,6 +187,9 @@ int PodManager::LanuchInitd(PodInfo* info) {
                             CLONE_STACK + CLONE_STACK_SIZE, 
                             CLONE_FLAG | SIGCHLD, 
                             &context);
+    // clear initd fds
+    ::close(context.stdout_fd);
+    ::close(context.stderr_fd);
     if (child_pid == -1) {
         LOG(WARNING, "clone initd for %s failed err[%d: %s]",
                     info->pod_id.c_str(), errno, strerror(errno));      

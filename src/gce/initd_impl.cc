@@ -17,7 +17,7 @@
 #include <boost/algorithm/string/split.hpp>
 #include <boost/bind.hpp>
 #include "gflags/gflags.h"
-#include "gce/utils.h"
+#include "agent/utils.h"
 #include "logging.h"
 
 DECLARE_string(gce_cgroup_root);
