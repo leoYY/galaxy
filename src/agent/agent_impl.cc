@@ -70,9 +70,9 @@ void AgentImpl::Query(::google::protobuf::RpcController* /*cntl*/,
     agent_info.mutable_total()->set_memory(
             FLAGS_agent_memory);
     agent_info.mutable_assigned()->set_millicores(
-            resource_capacity_.millicores); 
+            FLAGS_agent_millicores - resource_capacity_.millicores); 
     agent_info.mutable_assigned()->set_memory(
-            resource_capacity_.memory);
+            FLAGS_agent_millicores - resource_capacity_.memory);
 
     std::vector<PodInfo> pods;
     pod_manager_.ShowPods(&pods);
