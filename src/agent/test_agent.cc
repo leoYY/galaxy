@@ -8,6 +8,7 @@
 #include "gflags/gflags.h"
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string.hpp>
+#include <google/protobuf/text_format.h>
 
 #include "proto/agent.pb.h"
 #include "proto/galaxy.pb.h"
@@ -75,6 +76,49 @@ int main (int argc, char* argv[]) {
         fprintf(stdout, "run pod success\n"); 
     }
 
-    sleep(10000);
+    sleep(10);
+    // query pod 
+    baidu::galaxy::QueryRequest q_request;
+    baidu::galaxy::QueryResponse q_response;
+    std::string pb_str;
+    ret = rpc_client->SendRequest(agent,
+            &baidu::galaxy::Agent_Stub::Query,
+            &q_request, &q_response, 5, 1);
+    if (!ret) {
+        fprintf(stderr, "rpc query failed\n"); 
+    } else if (q_response.has_status()
+            && q_response.status() != baidu::galaxy::kOk) {
+        fprintf(stderr, "agent error %s\n",
+                baidu::galaxy::Status_Name(q_response.status()).c_str()); 
+    } else {
+        google::protobuf::TextFormat::PrintToString(q_response, &pb_str);
+        fprintf(stdout, "agent resp %s\n", pb_str.c_str());
+    }
+    sleep(10);
+    baidu::galaxy::KillPodRequest k_request;
+    baidu::galaxy::KillPodResponse k_response;
+    k_request.set_podid("hehe_test");
+    ret = rpc_client->SendRequest(agent,
+            &baidu::galaxy::Agent_Stub::KillPod,
+            &k_request, &k_response, 5, 1);
+    if (!ret) {
+        fprintf(stderr, "rpc query failed\n"); 
+    } 
+    fprintf(stderr, "agent error %s\n",
+                baidu::galaxy::Status_Name(k_response.status()).c_str()); 
+    sleep(10);
+    ret = rpc_client->SendRequest(agent,
+            &baidu::galaxy::Agent_Stub::Query,
+            &q_request, &q_response, 5, 1);
+    if (!ret) {
+        fprintf(stderr, "rpc query failed\n"); 
+    } else if (q_response.has_status()
+            && q_response.status() != baidu::galaxy::kOk) {
+        fprintf(stderr, "agent error %s\n",
+                baidu::galaxy::Status_Name(q_response.status()).c_str()); 
+    } else {
+        google::protobuf::TextFormat::PrintToString(q_response, &pb_str);
+        fprintf(stdout, "agent resp %s\n", pb_str.c_str());
+    }
     return 0;
 }

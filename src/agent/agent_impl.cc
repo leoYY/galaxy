@@ -48,6 +48,7 @@ AgentImpl::AgentImpl() :
 }
 
 AgentImpl::~AgentImpl() {
+    background_threads_.Stop(false);
     if (rpc_client_ != NULL) {
         delete rpc_client_; 
         rpc_client_ = NULL;
@@ -101,6 +102,7 @@ void AgentImpl::CreatePodInfo(
     for (int i = 0; i < pod_info->pod_desc.tasks_size(); i++) {
         TaskInfo task_info;
         task_info.task_id = GenerateTaskId(pod_info->pod_id);
+        task_info.pod_id = pod_info->pod_id;
         task_info.desc.CopyFrom(pod_info->pod_desc.tasks(i));
         task_info.status.set_state(kPodPending);
         task_info.initd_endpoint = "";
@@ -194,6 +196,11 @@ bool AgentImpl::Init() {
     if (!RegistToMaster()) {
         return false; 
     }
+
+    background_threads_.DelayTask(
+                500, 
+                boost::bind(&AgentImpl::LoopCheckPods, this)); 
+
     return true;
 }
 

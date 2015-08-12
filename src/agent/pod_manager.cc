@@ -209,12 +209,24 @@ int PodManager::CheckPod(const std::string& pod_id) {
 
     std::map<std::string, TaskInfo>::iterator task_it = 
         pod_info.tasks.begin();
+    PodState pod_state = kPodRunning; 
     std::vector<std::string> to_del_task;
     for (; task_it != pod_info.tasks.end(); ++task_it) {
         if (task_manager_->QueryTask(&(task_it->second)) != 0) {
             to_del_task.push_back(task_it->first);
+        } else {
+            // TODO pod state 
+            if (task_it->second.status.state() <= kPodRunning
+                    && task_it->second.status.state() < pod_state) {
+                pod_state = task_it->second.status.state();
+                 
+            } else if (task_it->second.status.state() > pod_state){
+                pod_state = task_it->second.status.state();
+                 
+            }
         }
     }
+    pod_info.pod_status.set_state(pod_state);
     for (size_t i = 0; i < to_del_task.size(); i++) {
         pod_info.tasks.erase(to_del_task[i]); 
     }
