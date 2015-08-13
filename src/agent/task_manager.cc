@@ -308,8 +308,6 @@ int TaskManager::PrepareCgroupEnv(TaskInfo* task) {
     }
 
     return 0;
-
-    return 0;
 }
 
 int TaskManager::PrepareResourceCollector(TaskInfo* /*task_info*/) {
