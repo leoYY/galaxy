@@ -469,6 +469,7 @@ void JobManager::DeployPod() {
             running_pods_[endpoint][jobid][podid] = pod;
             RunPod(pod_desc, pod);
         }
+        it->second.clear();
     }
 }
 
@@ -477,6 +478,7 @@ void JobManager::RunPod(const PodDescriptor& desc, PodStatus* pod) {
     RunPodRequest* request = new RunPodRequest;
     RunPodResponse* response = new RunPodResponse;
     request->set_podid(pod->podid());
+    request->set_jobid(pod->jobid());
     request->mutable_pod()->CopyFrom(desc);
 
     Agent_Stub* stub;
