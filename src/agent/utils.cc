@@ -360,8 +360,6 @@ bool IsSpecialDir(const char* path) {
     return strcmp(path, ".") == 0 || strcmp(path, "..") == 0;
 }
 
-
-
 bool Remove(const std::string& path) {
     if (path.empty()) {
         return false; 

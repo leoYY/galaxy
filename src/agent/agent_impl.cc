@@ -93,8 +93,10 @@ void AgentImpl::CreatePodInfo(
         return; 
     }
     pod_info->pod_id = req->podid();
+    pod_info->job_id = req->jobid();
     pod_info->pod_desc.CopyFrom(req->pod());
     pod_info->pod_status.set_podid(req->podid());
+    pod_info->pod_status.set_jobid(req->jobid());
     pod_info->pod_status.set_state(kPodPending);
     pod_info->initd_port = 0;
     pod_info->initd_pid = 0;

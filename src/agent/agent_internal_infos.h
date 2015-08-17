@@ -79,6 +79,7 @@ struct TaskInfo {
 
 struct PodInfo {
     std::string pod_id;
+    std::string job_id;
     PodDescriptor pod_desc;     
     PodStatus pod_status;
     int initd_port;
@@ -86,6 +87,7 @@ struct PodInfo {
     std::map<std::string, TaskInfo> tasks;
     PodInfo() 
         : pod_id(), 
+          job_id(),
           pod_desc(),
           pod_status(),
           initd_port(-1),
@@ -95,6 +97,7 @@ struct PodInfo {
 
     PodInfo(const PodInfo& pod_info) {
         pod_id = pod_info.pod_id;     
+        job_id = pod_info.job_id;
         pod_desc.CopyFrom(pod_info.pod_desc);
         pod_status.CopyFrom(pod_info.pod_status);
         initd_port = pod_info.initd_port;
