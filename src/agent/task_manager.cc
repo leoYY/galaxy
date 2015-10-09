@@ -1066,6 +1066,7 @@ void TaskManager::RefreshRetryTimes(TaskInfo* task_info) {
     if (now_time - task_info->retry_refresh_time 
                     > FLAGS_agent_task_refresh_interval) {
         task_info->fail_retry_times = 0; 
+        task_info->retry_refresh_time = now_time;
     }
     return;
 }
