@@ -249,7 +249,12 @@ void JobManager::FillPodsToJob(Job* job) {
     mutex_.AssertHeld();
     bool need_scale_up = false;
     job->pod_desc_[job->desc_.pod().version()] = job->desc_.pod();
-    for(int i = job->pods_.size(); i < job->desc_.replica(); i++) {
+    int pods_size = job->pods_.size();
+    if (pods_size > job->desc_.replica()) {
+        LOG(INFO, "move job %s to scale down queue", job->id_.c_str());
+        scale_down_jobs_.insert(job->id_);
+    }
+    for(int i = pods_size; i < job->desc_.replica(); i++) {
         PodId pod_id = MasterUtil::UUID();
         PodStatus* pod_status = new PodStatus();
         pod_status->set_podid(pod_id);
@@ -264,6 +269,7 @@ void JobManager::FillPodsToJob(Job* job) {
         LOG(INFO, "move job %s to scale up queue", job->id_.c_str());
         scale_up_jobs_.insert(job->id_);
     }
+   
 }
 
 void JobManager::FillAllJobs() {
@@ -685,6 +691,7 @@ void JobManager::HandleAgentOffline(const std::string agent_addr) {
     a_it->second->set_state(kDead);
     PodMap& agent_pods = pods_on_agent_[agent_addr];
     PodMap::iterator it = agent_pods.begin();
+    std::vector<std::pair<Job*, PodStatus*> > wait_to_pending;
     for (; it != agent_pods.end(); ++it) {
         std::map<PodId, PodStatus*>::iterator jt = it->second.begin();
         for (; jt != it->second.end(); ++jt) {
@@ -693,10 +700,15 @@ void JobManager::HandleAgentOffline(const std::string agent_addr) {
             if (job_it ==  jobs_.end()) {
                 continue;
             }
-            pod->set_stage(kStageDeath);
-            std::string reason = "agent " + agent_addr + " is dead";
-            ChangeStage(reason, kStagePending, pod, job_it->second);
+            wait_to_pending.push_back(std::make_pair(job_it->second, pod));
+                    
         }
+    }
+    std::vector<std::pair<Job*, PodStatus*> >::iterator pending_it = wait_to_pending.begin();
+    for (; pending_it != wait_to_pending.end(); ++pending_it) {
+        pending_it->second->set_stage(kStageDeath);
+        std::string reason = "agent " + agent_addr + " is dead";
+        ChangeStage(reason, kStagePending, pending_it->second, pending_it->first);
     }
     pods_on_agent_.erase(agent_addr);
     LOG(INFO, "agent is dead: %s", agent_addr.c_str());
@@ -860,9 +872,11 @@ void JobManager::QueryAgentCallback(AgentAddr endpoint, const QueryRequest* requ
             pods_has_expired.push_back(fake_pod);
             continue;
         }
-        // for recovering
+        Job* job = job_it->second;
+        // for recovering only in safe mode
         if (first_query_on_agent 
-            && jobs_[jobid]->pods_.find(podid) == jobs_[jobid]->pods_.end()) {
+            && job->pods_.find(podid) == job->pods_.end()
+            && safe_mode_) {
             PodStatus* pod = new PodStatus();
             pod->CopyFrom(report_pod_info);
             pod->set_stage(state_to_stage_[pod->state()]);
@@ -874,7 +888,6 @@ void JobManager::QueryAgentCallback(AgentAddr endpoint, const QueryRequest* requ
         }
 
         // validate pod
-        Job* job = job_it->second;
         std::map<PodId, PodStatus*>::iterator p_it = job->pods_.find(podid);
         // pod does not exist in master
         if (p_it == job->pods_.end()) {
